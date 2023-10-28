@@ -3,3 +3,6 @@ languageCode = "ja"
 title = "Concurrent Square"
 theme = "relearn"
 hasCJKLanguage = true
+
+[params]
+themevariant = [ "blue", "zen-dark" ]
