@@ -1,5 +1,6 @@
 +++
 title="QuickStart"
+weight=1
 +++
 
 ## バージョン選定
