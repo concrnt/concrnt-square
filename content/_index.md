@@ -55,7 +55,7 @@ ConcurrentはSNSのセマンティクスを「Message」「Association」「Char
 - [malamutedataro](https://github.com/malamutedataro)
 - [oinarisummer](https://github.com/oinarisummer)
 - [fono09](https://github.com/fono09)
-- [ouroboros723](https://github.com/ourboros723)
+- [ouroboros723](https://github.com/ouroboros723)
 - [Zozokasu](https://github.com/zozokasu)
 - [Hennnatori](https://github.com/Hennnatori)
 
