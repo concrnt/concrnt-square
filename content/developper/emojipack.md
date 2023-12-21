@@ -109,4 +109,4 @@ Access-Control-Allow-Origin "*"
 
 レスポンスヘッダに任意のキーを付加する方法については、各Webサーバーのマニュアルを参照してください。
 
-もしくは、[GitHub Gist](https://gist.github.com/starred)を使用して、JSONファイルを公開することもできます。
+もしくは、[GitHub Gist](https://gist.github.com/)を使用して、JSONファイルを公開することもできます。
