@@ -1,8 +1,18 @@
 baseURL = 'https://square.concurrent.world/'
 languageCode = "ja"
-title = "Concurrent Square"
+title = "Concrnt Square"
 theme = "relearn"
 hasCJKLanguage = true
 
 [params]
 themevariant = [ "blue", "zen-dark" ]
+favicon = "https://s3.gammalab.net/icons/Concrnt.png"
+
+[markup.goldmark.renderer]
+unsafe = true
+
+[markup.highlight]
+noClasses=false
+linenos=true
+lineNumbersInTable = true
+

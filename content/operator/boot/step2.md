@@ -1,0 +1,260 @@
++++
+title="Step2 kubernetesのセットアップ"
+weight=1
++++
+
+## microk8sのインストール
+```
+totegamma@raspi5:~$ sudo snap install microk8s --classic
+[sudo] password for totegamma:
+microk8s (1.29/stable) v1.29.5 from Canonical✓ installed
+totegamma@raspi5:~$
+```
+
+## グループの調整
+```
+totegamma@raspi5:~$ sudo usermod -a -G microk8s totegamma
+totegamma@raspi5:~$ newgrp microk8s
+totegamma@raspi5:~$
+```
+
+## 起動確認
+```
+totegamma@raspi5:~$ microk8s status
+microk8s is running
+high-availability: no
+  datastore master nodes: 127.0.0.1:19001
+  datastore standby nodes: none
+addons:
+  enabled:
+    dns                  # (core) CoreDNS
+    ha-cluster           # (core) Configure high availability on the current node
+    helm                 # (core) Helm - the package manager for Kubernetes
+    helm3                # (core) Helm 3 - the package manager for Kubernetes
+  disabled:
+    cert-manager         # (core) Cloud native certificate management
+    cis-hardening        # (core) Apply CIS K8s hardening
+    community            # (core) The community addons repository
+    dashboard            # (core) The Kubernetes dashboard
+    host-access          # (core) Allow Pods connecting to Host services smoothly
+    hostpath-storage     # (core) Storage class; allocates storage from host directory
+    ingress              # (core) Ingress controller for external access
+    kube-ovn             # (core) An advanced network fabric for Kubernetes
+    mayastor             # (core) OpenEBS MayaStor
+    metallb              # (core) Loadbalancer for your Kubernetes cluster
+    metrics-server       # (core) K8s Metrics Server for API access to service metrics
+    minio                # (core) MinIO object storage
+    observability        # (core) A lightweight observability stack for logs, traces and metrics
+    prometheus           # (core) Prometheus operator for monitoring and logging
+    rbac                 # (core) Role-Based Access Control for authorisation
+    registry             # (core) Private image registry exposed on localhost:32000
+    rook-ceph            # (core) Distributed Ceph storage using Rook
+    storage              # (core) Alias to hostpath-storage add-on, deprecated
+totegamma@raspi5:~$
+
+
+totegamma@raspi5:~$ microk8s kubectl get nodes
+NAME     STATUS   ROLES    AGE    VERSION
+raspi5   Ready    <none>   4m9s   v1.29.5
+totegamma@raspi5:~$ microk8s kubectl get pods --all-namespaces
+NAMESPACE     NAME                                     READY   STATUS    RESTARTS   AGE
+kube-system   calico-kube-controllers-77bd7c5b-bqztq   1/1     Running   0          4m6s
+kube-system   calico-node-tc4tr                        1/1     Running   0          4m6s
+kube-system   coredns-864597b5fd-w64fs                 1/1     Running   0          4m6s
+totegamma@raspi5:~$
+```
+
+## プラグインの有効化
+```
+totegamma@raspi5:~/concrnt-kustomize$ microk8s enable hostpath-storage
+Infer repository core for addon hostpath-storage
+Enabling default storage class.
+WARNING: Hostpath storage is not suitable for production environments.
+         A hostpath volume can grow beyond the size limit set in the volume claim manifest.
+
+deployment.apps/hostpath-provisioner created
+storageclass.storage.k8s.io/microk8s-hostpath created
+serviceaccount/microk8s-hostpath created
+clusterrole.rbac.authorization.k8s.io/microk8s-hostpath created
+clusterrolebinding.rbac.authorization.k8s.io/microk8s-hostpath created
+Storage will be available soon.
+totegamma@raspi5:~/concrnt-kustomize$
+```
+
+ここで表示されているように、hostpath-storageはプロダクション環境では推奨されてはいません。
+大人数で利用するサーバーの場合、ほかの方法を検討する必要があります。
+
+## DNS設定
+```
+totegamma@raspi5:~/concrnt-kustomize$ sudo vim /etc/systemd/resolved.conf
+
+# 以下を追加
+[Resolve]
+DNS=10.152.183.10
+Domains=cluster.local
+
+
+totegamma@raspi5:~$ sudo systemctl daemon-reload
+totegamma@raspi5:~$ sudo systemctl restart systemd-resolved
+totegamma@raspi5:~$ dig +short kube-dns.kube-system.svc.cluster.local
+10.152.183.10
+totegamma@raspi5:~$
+```
+kube-dnsのipが解決されることを確認してください。
+
+## gitのインストール
+```
+sudo apt install git
+totegamma@raspi5:~$ sudo apt install git
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following additional packages will be installed:
+  git-man liberror-perl
+Suggested packages:
+  git-daemon-run | git-daemon-sysvinit git-doc git-email git-gui gitk gitweb git-cvs git-mediawiki git-svn
+The following NEW packages will be installed:
+  git git-man liberror-perl
+0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+Need to get 4903 kB of archives.
+After this operation, 24.7 MB of additional disk space will be used.
+Do you want to continue? [Y/n]
+Get:1 http://ports.ubuntu.com/ubuntu-ports noble/main arm64 liberror-perl all 0.17029-2 [25.6 kB]
+Get:2 http://ports.ubuntu.com/ubuntu-ports noble-updates/main arm64 git-man all 1:2.43.0-1ubuntu7.1 [1100 kB]
+Get:3 http://ports.ubuntu.com/ubuntu-ports noble-updates/main arm64 git arm64 1:2.43.0-1ubuntu7.1 [3777 kB]
+Fetched 4903 kB in 3s (1447 kB/s)
+Selecting previously unselected package liberror-perl.
+(Reading database ... 130091 files and directories currently installed.)
+Preparing to unpack .../liberror-perl_0.17029-2_all.deb ...
+Unpacking liberror-perl (0.17029-2) ...
+Selecting previously unselected package git-man.
+Preparing to unpack .../git-man_1%3a2.43.0-1ubuntu7.1_all.deb ...
+Unpacking git-man (1:2.43.0-1ubuntu7.1) ...
+Selecting previously unselected package git.
+Preparing to unpack .../git_1%3a2.43.0-1ubuntu7.1_arm64.deb ...
+Unpacking git (1:2.43.0-1ubuntu7.1) ...
+Setting up liberror-perl (0.17029-2) ...
+Setting up git-man (1:2.43.0-1ubuntu7.1) ...
+Setting up git (1:2.43.0-1ubuntu7.1) ...
+Processing triggers for man-db (2.12.0-4build2) ...
+totegamma@raspi5:~$
+```
+
+
+## コンカレントのプロジェクトファイルのダウンロード
+```
+totegamma@raspi5:~$ git clone https://github.com/concrnt/concrnt-kustomize.git
+Cloning into 'concrnt-kustomize'...
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (9/9), done.
+remote: Total 10 (delta 0), reused 10 (delta 0), pack-reused 0
+Receiving objects: 100% (10/10), 9.68 KiB | 9.68 MiB/s, done.
+totegamma@raspi5:~$
+
+
+totegamma@raspi5:~$ ls
+Desktop  Documents  Downloads  Music  Pictures  Public  Templates  Videos  concrnt-kustomize  snap
+totegamma@raspi5:~$ cd concrnt-kustomize/
+totegamma@raspi5:~/concrnt-kustomize$
+```
+
+## 各種パラメーターの設定
+
+```
+totegamma@raspi5:~/concrnt-kustomize$ ls
+cm-files  configmap-generator.yaml  kustomization.yaml  values.yaml
+totegamma@raspi5:~/concrnt-kustomize$
+```
+
+ここで、サーバーの設定を行います。
+- values.yaml: サーバーの名前やアイコン、アドレス等を設定します。
+- cm-files/tos.txt: 利用規約を記載します。
+- cm-files/code-of-conduct.txt: 行動規範を記載します。
+- cm-files/register-template.json: (必要であれば編集)ユーザーが登録する際に記入してもらう情報のテンプレートです。
+
+
+## namespaceの作成
+```
+totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl create namespace concrnt
+namespace/concrnt created
+totegamma@raspi5:~/concrnt-kustomize$
+```
+
+## デプロイ
+
+次のコマンドでデプロイします。
+設定ファイルを変更した場合も、このコマンドを実行することで変更が反映されます。
+
+```
+totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl kustomize . --enable-helm | microk8s kubectl apply -f -
+configmap/activitypub-config created
+configmap/concrnt-config created
+configmap/concrnt-static created
+service/ccapi created
+service/ccgateway created
+service/ccwebui created
+service/db created
+service/memcached created
+service/redis created
+persistentvolumeclaim/concrnt-repository created
+persistentvolumeclaim/postgres-varlib created
+persistentvolumeclaim/redis-data created
+deployment.apps/ccapi created
+deployment.apps/ccgateway created
+deployment.apps/ccwebui created
+deployment.apps/concurrent-db created
+deployment.apps/concurrent-memcached created
+deployment.apps/concurrent-redis created
+cronjob.batch/db-backup created
+totegamma@raspi5:~/concrnt-kustomize$
+
+```
+
+## デプロイの確認
+
+```
+totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl get pods -n concrnt
+NAME                                   READY   STATUS    RESTARTS      AGE
+ccapi-6c7bd74ff4-kscvb                 1/1     Running   1 (25s ago)   65s
+ccgateway-7ffc8bc8f7-6mt87             1/1     Running   2 (41s ago)   65s
+ccwebui-645fbfd67-vjrb4                1/1     Running   0             65s
+concurrent-db-66c9c4f5dd-lzkhd         1/1     Running   0             64s
+concurrent-memcached-d7bbc79dc-7mthk   1/1     Running   0             64s
+concurrent-redis-bf6c8ddb-hfw5v        1/1     Running   0             64s
+totegamma@raspi5:~/concrnt-kustomize$
+
+```
+
+全てのPodがRunning状態になっていることを確認してください。
+
+## アクセスできることを確認
+### コマンドで確認
+curlが入っていない場合、`sudo apt install curl`でインストールしてください。
+```
+totegamma@raspi5:~$ curl ccgateway.concrnt.svc.cluster.local
+<!DOCTYPE html>
+<html>
+        <head>
+                <title>ccgateway</title>
+                <meta charset="utf-8">
+                <link rel="icon" href="">
+        </head>
+        <body>
+                <h1>Concurrent Domain - example.tld</h1>
+                Yay! You're on ccgateway!<br>
+                You might looking for <a href="https://concurrent.world">concurrent.world</a>.<br>
+                This domain is currently registration: invite<br>
+                <h2>Information</h2>
+                CDID: con12takug6nkws7j2unx0vs4glmkftw96h5dj5kty
+                <h2>Services</h2>
+                <ul>
+                <li><a href="/web">webui</a></li><li><a href="/api/v1">conctnt</a></li>
+                </ul>
+        </body>
+</html>
+totegamma@raspi5:~$
+```
+
+### ブラウザで確認
+ブラウザで`http://ccgateway.concrnt.svc.cluster.local`にアクセスしてください。
