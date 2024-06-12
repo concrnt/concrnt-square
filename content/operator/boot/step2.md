@@ -84,24 +84,6 @@ totegamma@raspi5:~/concrnt-kustomize$
 ここで表示されているように、hostpath-storageはプロダクション環境では推奨されてはいません。
 大人数で利用するサーバーの場合、ほかの方法を検討する必要があります。
 
-## DNS設定
-```
-totegamma@raspi5:~/concrnt-kustomize$ sudo vim /etc/systemd/resolved.conf
-
-# 以下を追加
-[Resolve]
-DNS=10.152.183.10
-Domains=cluster.local
-
-
-totegamma@raspi5:~$ sudo systemctl daemon-reload
-totegamma@raspi5:~$ sudo systemctl restart systemd-resolved
-totegamma@raspi5:~$ dig +short kube-dns.kube-system.svc.cluster.local
-10.152.183.10
-totegamma@raspi5:~$
-```
-kube-dnsのipが解決されることを確認してください。
-
 ## gitのインストール
 ```
 sudo apt install git
@@ -139,7 +121,6 @@ Setting up git (1:2.43.0-1ubuntu7.1) ...
 Processing triggers for man-db (2.12.0-4build2) ...
 totegamma@raspi5:~$
 ```
-
 
 ## コンカレントのプロジェクトファイルのダウンロード
 ```
@@ -208,8 +189,14 @@ deployment.apps/concurrent-memcached created
 deployment.apps/concurrent-redis created
 cronjob.batch/db-backup created
 totegamma@raspi5:~/concrnt-kustomize$
+```
+
+一部の自動で反映されない設定を変更したときなど、手動で再起動を行いたい場合は次のコマンドを実行してください。
 
 ```
+totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl rollout restart deployment/ccapi deployment/ccgateway
+```
+
 
 ## デプロイの確認
 
@@ -226,35 +213,5 @@ totegamma@raspi5:~/concrnt-kustomize$
 
 ```
 
-全てのPodがRunning状態になっていることを確認してください。
+全てのPodがRunning状態になっていることを確認してください。(applyしてすぐは、restarting状態になっていることがあります)
 
-## アクセスできることを確認
-### コマンドで確認
-curlが入っていない場合、`sudo apt install curl`でインストールしてください。
-```
-totegamma@raspi5:~$ curl ccgateway.concrnt.svc.cluster.local
-<!DOCTYPE html>
-<html>
-        <head>
-                <title>ccgateway</title>
-                <meta charset="utf-8">
-                <link rel="icon" href="">
-        </head>
-        <body>
-                <h1>Concurrent Domain - example.tld</h1>
-                Yay! You're on ccgateway!<br>
-                You might looking for <a href="https://concurrent.world">concurrent.world</a>.<br>
-                This domain is currently registration: invite<br>
-                <h2>Information</h2>
-                CDID: con12takug6nkws7j2unx0vs4glmkftw96h5dj5kty
-                <h2>Services</h2>
-                <ul>
-                <li><a href="/web">webui</a></li><li><a href="/api/v1">conctnt</a></li>
-                </ul>
-        </body>
-</html>
-totegamma@raspi5:~$
-```
-
-### ブラウザで確認
-ブラウザで`http://ccgateway.concrnt.svc.cluster.local`にアクセスしてください。
