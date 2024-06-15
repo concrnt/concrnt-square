@@ -1,4 +1,4 @@
-baseURL = 'https://square.concurrent.world/'
+baseURL = 'https://square.concrnt.net'
 languageCode = "ja"
 title = "Concrnt Square"
 theme = "relearn"
