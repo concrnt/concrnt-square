@@ -194,7 +194,7 @@ totegamma@raspi5:~/concrnt-kustomize$
 一部の自動で反映されない設定を変更したときなど、手動で再起動を行いたい場合は次のコマンドを実行してください。
 
 ```
-totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl rollout restart deployment/ccapi deployment/ccgateway
+totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl rollout restart deployment/ccapi deployment/ccgateway -n concrnt
 ```
 
 
