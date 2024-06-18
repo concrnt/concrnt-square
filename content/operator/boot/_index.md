@@ -16,10 +16,17 @@ weight=1
 
 ## 構築
 基本的にkubernetesを用いた構築を推奨しています。
-docker-compose当でも立ち上げがア可能ですが、例えばバックアップ等の定期ジョブは手動で設定する必要があります。
 
 helm chartはこちらから配信されています: https://charts.concrnt.net/
 また、kustomizeの例としてレポジトリが公開されています: https://github.com/concrnt/concrnt-kustomize
+詳細はこの階層にあるチュートリアルを参照してください。
+
+
+docker-compose当でも立ち上げが可能ですが、例えばバックアップ等の定期ジョブは手動で設定する必要があります。
+
+compose.ymlや設定ファイル等は[レポジトリ内の\_docsディレクトリ](https://github.com/totegamma/concurrent/tree/develop/_docs)を参照してください。
+kustomizeを用いる場合と異なり、設定ファイルが自動生成されないので、注意して`etc/config.yaml`を設定してください。特に、[activitypubモジュール]({{< ref "apbridge" >}})を有効にする場合、重複して設定する箇所があるため、もれのないように設定する必要があります。
+
 
 ## セットアップ
 webクライアント https://concrnt.world を通じて自分のサーバーにアカウントを作成することができます。
