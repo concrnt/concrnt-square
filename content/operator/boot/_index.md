@@ -27,6 +27,13 @@ docker-compose当でも立ち上げが可能ですが、例えばバックアッ
 compose.ymlや設定ファイル等は[レポジトリ内の\_docsディレクトリ](https://github.com/totegamma/concurrent/tree/develop/_docs)を参照してください。
 kustomizeを用いる場合と異なり、設定ファイルが自動生成されないので、注意して`etc/config.yaml`を設定してください。特に、[activitypubモジュール]({{< ref "apbridge" >}})を有効にする場合、重複して設定する箇所があるため、もれのないように設定する必要があります。
 
+## config
+サーバーに割り当てる秘密鍵は、concrnt.worldの開発者ツールの`Identity Generator`を使うと簡単です。
+若しくは、次のワンライナーでも生成することができます。
+```bash
+openssl ecparam -name secp256k1 -genkey -noout | openssl ec -text -noout 2&>null | grep priv -A 3 | tail -n +2 | tr -d ' :\n'
+```
+
 
 ## セットアップ
 webクライアント https://concrnt.world を通じて自分のサーバーにアカウントを作成することができます。
