@@ -7,6 +7,7 @@ hasCJKLanguage = true
 [params]
 themevariant = [ "blue", "zen-dark" ]
 favicon = "https://s3.gammalab.net/icons/Concrnt.png"
+description = "Concrnt Squareは分散型SNS「Concrnt(コンカレント)」の始め方からサーバー運用方法、開発ノウハウまで、様々な情報を集約しているサイトです。"
 
 [markup.goldmark.renderer]
 unsafe = true
