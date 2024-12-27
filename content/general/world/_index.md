@@ -1,5 +1,5 @@
 +++
-title="クイックスタート"
+title="concrnt.worldをはじめよう"
 weight=1
 +++
 
