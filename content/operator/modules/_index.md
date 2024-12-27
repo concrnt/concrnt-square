@@ -18,10 +18,9 @@ gitレポジトリ: https://github.com/concrnt/ccworld-ap-bridge
 
 gitレポジトリ: https://github.com/totegamma/cc-media-server
 
-### Summary
-ユーザーが、メッセージ上に添付されたURLのプレビューを表示できるように、外部URLに対してサマリーを生成するモジュールです。
+### hyperproxy
+ユーザーが、メッセージ上に添付されたURLのプレビューを表示できるように、外部URLに対してサマリーを生成したり、画像をキャッシュし、さらにリサイズして配信するモジュールです。
 
-
-gitレポジトリ: https://github.com/rassi0429/url-summary
+gitレポジトリ: https://github.com/concrnt/hyperproxy
 
 

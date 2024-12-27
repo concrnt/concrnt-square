@@ -1,6 +1,6 @@
 +++
-title="Step3 アクセスできるようにする"
-weight=1
+title="Step2 アクセスできるようにする"
+weight=2
 +++
 
 ## Cloudflareのアカウントを作成

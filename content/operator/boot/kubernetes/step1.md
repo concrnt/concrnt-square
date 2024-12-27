@@ -1,5 +1,5 @@
 +++
-title="Step2 kubernetesのセットアップ"
+title="Step1 kubernetesのセットアップ"
 weight=1
 +++
 

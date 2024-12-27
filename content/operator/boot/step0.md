@@ -1,5 +1,5 @@
 +++
-title="Step1 サーバーを確保する"
+title="Step0 サーバーを確保する"
 weight=1
 +++
 
