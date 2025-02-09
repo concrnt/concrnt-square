@@ -8,11 +8,10 @@ weight=2
 ## ライブラリのインストール
 
 ```bash
-pnpm i @concurrent-world/client
+pnpm i @concrnt/client @concrnt/worldlib
 ```
 
 でライブラリをインストールすることができます。
-
 
 
 ## Examples
@@ -24,7 +23,7 @@ pnpm i @concurrent-world/client
 サブキーの持ち主のアカウントで、ホームタイムラインとarrival_loungeタイムラインに投稿する例です。
 
 ```js
-import { Client } from "@concurrent-world/client"
+import { Client } from '@concrnt/worldlib'
 
 const arrival_lounge = 'tar69vv26r5s4wk0r067v20bvyw@ariake.concrnt.net'
 const body = 'はろはろ'
@@ -44,7 +43,7 @@ await client.createMarkdownCrnt(
 サブキーの持ち主のアカウントの、ホームタイムラインに投稿されたメッセージをリアルタイムで受信する例です。
 
 ```js
-import { Client } from "@concurrent-world/client"
+import { Client } from '@concrnt/worldlib'
 
 const subkey = "concurrent-subkey xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx con1t0tey8uxhkqkd4wcp4hd4jedt7f0vfhk29xdd2@denken.concrnt.net totegamma"
 const client = await Client.createFromSubkey(subkey)
