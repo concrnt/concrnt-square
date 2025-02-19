@@ -14,7 +14,7 @@ Concrntでは公式のドメイン動作環境としてKubernetesが推奨され
 Composeの構成ファイルが入ったリポジトリをクローンします。
 
 ```
-git clone https://github.com/concrnt/compose
+git clone https://github.com/concrnt/concrnt-compose
 ```
 
 起動する前に各種設定を完了してください。
@@ -23,7 +23,7 @@ git clone https://github.com/concrnt/compose
 
 必要に応じてファイルを編集し各種設定を変更してください。
 
-#### **compose/etc/config/config.yaml**
+#### **concrnt-compose/etc/config/config.yaml**
 
 このファイルでConcrntドメインの基本設定を行います。
 
@@ -37,12 +37,16 @@ git clone https://github.com/concrnt/compose
 
 `concrnt.privatekey`
 
-サーバーが内部で利用する暗号鍵の設定を行います。既存のアカウントで公式クライアントのConcrnt Worldにログインし、設定/一般から開発者モードを有効化してください。すると、メニューに開発者ツールが表示されますのでクリックして開いてください。画面上部の `IDENTITYGENERATOR` タブを選択し、 `GENERATE` ボタンを押すと新しい認証情報が生成されますので、その中から `privatekey` をコピーして転記してください。
+サーバーが内部で利用する暗号鍵の設定を行います。 `compose.yaml` のあるディレクトリで下記コマンドを実行することで取得できる `privatekey` を貼り付けてください。他の各種情報は `privatekey` から復元できるため廃棄可能です。
 
-<div align="center">
-    <img src="/images/compose/cw-devtool.png" width="500px" >
-    <p>Devtoolで `privatekey` を生成可能</p>
-</div>
+```
+docker compose run api conctl generate identity
+// ... //
+ccid:		 con1u0099ujr8g9m// ... //c6hgyxzp
+mnemonic:	 avocado chimney // ... // faith excess blur gun
+privatekey:	 69cc17321e531c6d// ... //46db5166d92ab56e0c69f4d5e0
+publickey:	 0290a6b90887c3da// ... //93dafe6016b221173d8416f0a28a2f0568e19
+```
 
 `profile.*`
 
@@ -66,17 +70,25 @@ git clone https://github.com/concrnt/compose
 </div>
 
 
-#### **compose/etc/config/gateway.yaml**
+#### **concrnt-compose/etc/config/gateway.yaml**
 
 `cctgateway` の設定ファイルが含まれます。基本的に設定を変更する必要はありません。
 
-#### **compose/etc/static/\*\*.yaml**
+#### **concrnt-compose/etc/config/apconfig.yaml**
+
+ActivityPubブリッジを利用する際に必要な設定項目が含まれます。
+
+#### **concrnt-compose/etc/static/\*.yaml**
 
 アカウント新規作成時に表示される各種注意事項や規約、管理者が収集したいデータについて定義するファイルが含まれます。
 
-#### **compose/compose.yaml**
+#### **concrnt-compose/compose.yaml**
 
-このファイルでConcrntの各サービスの立ち上げと構成を行います。
+このファイルでConcrntの各サービスの立ち上げと構成を行います。デフォルトで最小限のサービスが起動するようになっています。必要に応じてコメントを外し、追加サービスを有効化することが可能です。
+
+{{< notice info >}}
+各サービスは後から任意で有効化することができますので、初めての構築の場合は最小限でのセットアップを一度試してみるのがおすすめです。
+{{< /notice >}}
 
 `services.cloudflared`
 
@@ -86,6 +98,18 @@ Cloudflare Tunnelを利用する場合、コメントを外してトークンを
 固定IPアドレスやポート解放を行えない環境でドメインを起動する場合、この項目の設定は必須です。 「Cloudflare Tunnelを利用する」ページに移動し、各種設定を済ませてください。
 {{< /notice >}}
 
+`services.apbridge`
+
+ActivityPubブリッジの有効化を行います。ConcrntからActivityPubを実装しているサービスのユーザーと相互にフォローすることが可能になります。この設定を行う場合、必ず `etc/config/apconfig.yaml` の設定が必要です。また、 `etc/config/gateway.yaml` から `world.concrnt.ap-bridge` と `world.concrnt.webfinger` の項目をコメントから外し有効化する必要があります。
+
+`services.mediaserver`
+
+デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。 `etc/config/gateway.yaml` から `world.concrnt.mediaserver` の項目をコメントから外し有効化する必要があります。
+
+`services.search` && `searvices.meilisearch`
+
+コミュニティ内検索を有効にします。 `etc/config/gateway.yaml` から `net.concrnt.search` の項目をコメントから外し有効化する必要があります。
+
 ### 3. 起動
 
 下記コマンドで起動します。 `compose.yaml` が存在する場所で下記コマンドを実行してください。
@@ -94,19 +118,26 @@ Cloudflare Tunnelを利用する場合、コメントを外してトークンを
 docker compose up -d
 ```
 
-`concrnt.fqdn` にブラウザでアクセスし、下記画面が表示されCSIDが表示されていれば完了です。
+`concrnt.fqdn` にブラウザでアクセスし、下記画面が表示されCSIDが表示されていれば準備は完了です。
 
 <div align="center">
     <img src="/images/compose/cc-top.png">
     <p>Concrntドメインのトップページ</p>
 </div>
 
+何かおかしい時はFAQを確認してください。
 
 ### 4. アカウント作成と連合の追加
 
-// TODO: 招待コードの作成
-
 Webクライアント [https://concrnt.world](https://concrnt.world) を用いて自身のドメインでアカウントを作成してください。
+
+
+`concrnt.registration` をデフォルト設定の `invite` で作成した場合、一度コンテナでコマンドを実行し招待コードを取得する必要があります。
+
+```
+docker compose run api conctl generate invite
+eyJhbGciO//...//UzNj_f7pj8a0nIwA
+```
 
 アカウント作成後は何もないまっさらなタイムラインが表示されますが心配ありません。
 下記のようなタイムラインにアクセスし、何か投稿してみましょう！
@@ -115,3 +146,22 @@ Webクライアント [https://concrnt.world](https://concrnt.world) を用い�
 - [#Concrnt Fun](https://concrnt.world/timeline/ty3b4tc0eamm333pp0683gw1ndg@ariake.concrnt.net)
 
 違うドメインのタイムラインに投稿したとしても、投稿のデータはすべてあなたのドメインだけに保存されます。Concrntを楽しみましょう！
+
+## FAQ
+よくある質問を掲載しています。
+
+### コンテナを起動したがアクセスできない・エラーが表示される
+
+問題を切り分ける必要があります。
+
+#### 『このサイトにアクセスできません』と表示される
+
+- DNSにConcrntのFQDNが正しく登録されていますか？
+- ポートは正しく開放されていますか？
+- サーバーとクライアントのグローバルIPが同じ場合、正しくアクセスできない場合があります。Cloudflare Tunnelの利用を検討してみてください。
+
+#### CSIDが表示されない・APIがエラーを返す
+
+- `concrnt-compose/etc/config/config.yaml` は正しく設定されていますか？
+- データベースとの接続はきちんとできていますか？DBの設定を変えた場合、DNSの値は一致していますか？
+
