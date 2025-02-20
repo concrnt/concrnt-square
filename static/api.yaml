@@ -1,0 +1,1766 @@
+openapi: 3.0.3
+info:
+  title: ccapi
+  version: 0.0.0
+externalDocs:
+  description: concurrent square
+  url: https://square.concrnt.world
+servers:
+  - url: https://ariake.concrnt.net/api/v1
+  - url: https://zyouya.concrnt.net/api/v1
+tags:
+  - name: repository
+  - name: auth
+  - name: domain
+  - name: entity
+  - name: key
+  - name: message
+  - name: association
+  - name: profile
+  - name: timeline
+  - name: subscription
+  - name: job
+  - name: userkv
+  - name: notification
+paths:
+
+  # repository
+	# apiV1.POST("/commit", storeHandler.Commit)
+  /commit:
+    post:
+      summary: create changes to the repository
+      tags:
+        - repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Commit'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+
+  # apiV1.GET("/repository", storeHandler.Get, auth.Restrict(auth.ISREGISTERED))
+  # apiV1.POST("/repository", storeHandler.Post, auth.Restrict(auth.ISLOCAL))
+  /repository:
+    get:
+      summary: get repository status
+      tags:
+        - repository
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+    post:
+      summary: post to repository
+      tags:
+        - repository
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+
+  # apiV1.GET("/repositories/sync", storeHandler.GetSyncStatus, auth.Restrict(auth.ISREGISTERED))
+  # apiV1.POST("/repositories/sync", storeHandler.PerformSync, auth.Restrict(auth.ISREGISTERED))
+  /repositories/sync:
+    get:
+      summary: get sync status
+      tags:
+        - repository
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        properties:
+                          owner:
+                            type: string
+                          status:
+                            type: string
+                          latestOnFile:
+                            type: string
+                          latestOnDB:
+                            type: string
+                          progress:
+                            type: number
+
+    post:
+      summary: perform sync
+      tags:
+        - repository
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        properties:
+                          owner:
+                            type: string
+                          status:
+                            type: string
+                          latestOnFile:
+                            type: string
+                          latestOnDB:
+                            type: string
+                          progress:
+                            type: number
+
+  # auth
+	# apiV1.GET("/auth/passport", authHandler.GetPassport, auth.Restrict(auth.ISLOCAL))
+  /auth/passport:
+    get:
+      summary: get passport
+      tags:
+        - auth
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: string
+
+  # key
+	# apiV1.GET("/key/:id", keyHandler.GetKeyResolution)
+  /key/{id}:
+    get:
+      summary: get key resolution
+      tags:
+        - key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Key'
+
+	# apiV1.GET("/keys/mine", keyHandler.GetKeyMine, auth.Restrict(auth.ISREGISTERED))
+  /keys/mine:
+    get:
+      summary: get my keys
+      tags:
+        - key
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Key'
+
+  # domain
+  # apiV1.GET("/domain", func(c echo.Context) error {})
+  /domain:
+    get:
+      summary: provide domain basic information
+      tags:
+        - domain
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Domain'
+
+  # apiV1.GET("/domain/:id", domainHandler.Get)
+  /domain/{id}:
+    get:
+      summary: get domain information
+      tags:
+        - domain
+      parameters:
+        - name: id
+          in: path
+          description: target domain
+          required: true
+          schema:
+            type: string
+            format: fqdn
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Domain'
+
+  # apiV1.GET("/domains", domainHandler.List)
+  /domains:
+    get:
+      summary: get united domain list
+      tags:
+        - domain
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Domain'
+
+  # entity
+  # apiV1.GET("/entity", entityHandler.GetSelf, auth.Restrict(auth.ISREGISTERED))
+  /entity:
+    get:
+      tags:
+        - entity
+      security:
+        - LOCAL: []
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Entity'
+
+  # apiV1.GET("/entity/:id", entityHandler.Get)
+  /entity/{id}:
+    get:
+      tags:
+        - entity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Entity'
+
+  # apiV1.GET("/entity/:id/acking", ackHandler.GetAcking)
+  /entity/{id}/acking:
+    get:
+      tags:
+        - entity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Ack'
+
+  # apiV1.GET("/entity/:id/acker", ackHandler.GetAcker)
+  /entity/{id}/acker:
+    get:
+      tags:
+        - entity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Ack'
+
+
+  # apiV1.GET("/entities", entityHandler.List)
+  /entities:
+    get:
+      tags:
+        - entity
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Entity'
+
+
+  # apiV1.GET("/entity/meta", entityHandler.GetMeta, auth.Restrict(auth.ISREGISTERED))
+  # apiV1.PUT("/entity/meta", entityHandler.UpdateMeta, auth.Restrict(auth.ISREGISTERED))
+  /entity/meta:
+    get:
+      tags:
+        - entity
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: ccid
+                          inviter:
+                            type: string
+                            format: ccid
+                          info:
+                            type: object
+
+    put:
+      tags:
+        - entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                info:
+                  type: object
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+
+
+
+  # message
+  # apiV1.GET("/message/:id", messageHandler.Get)
+  /message/{id}:
+    get:
+      tags:
+        - message
+      summary: Get an message
+      description: hogehoge
+      parameters:
+        - name: id
+          in: path
+          description: messageID which presented as UUIDv4
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Message'
+
+  # apiV1.GET("/message/:id/associations", associationHandler.GetFiltered)
+  /message/{id}/associations:
+    get:
+      tags:
+        - message
+      parameters:
+        - name: id
+          in: path
+          description: messageID which presented as UUIDv4
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: schema
+          in: query
+          description: filter by schema
+          required: false
+          schema:
+            type: string
+        - name: variant
+          in: query
+          description: filter by variant
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Association'
+
+
+  # apiV1.GET("/message/:id/associationcounts", associationHandler.GetCounts)
+  /message/{id}/associationcounts:
+    get:
+      tags:
+        - message
+      parameters:
+        - name: id
+          in: path
+          description: messageID which presented as UUIDv4
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: schema
+          in: query
+          description: filter by schema
+          required: false
+          schema:
+            type: string
+        - name: variant
+          in: query
+          description: filter by variant
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: number
+
+  # apiV1.GET("/message/:id/associations/mine", associationHandler.GetOwnByTarget, auth.Restrict(auth.ISKNOWN))
+  /message/{id}/associations/mine:
+    get:
+      tags:
+        - message
+      parameters:
+        - name: id
+          in: path
+          description: messageID which presented as UUIDv4
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Association'
+
+  # association
+  # apiV1.GET("/association/:id", associationHandler.Get)
+  /association/{id}:
+    get:
+      tags:
+        - association
+      parameters:
+        - name: id
+          in: path
+          description: messageID which presented as UUIDv4
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Association'
+
+
+  # profile
+  # apiV1.GET("/profile/:id", profileHandler.Get)
+  /profile/{id}:
+    get:
+      tags:
+        - profile
+      parameters:
+        - name: id
+          in: path
+          description: profileID
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Profile'
+  # apiV1.GET("/profile/:owner/:semanticid", profileHandler.GetBySemanticID)
+  /profile/{owner}/{semanticid}:
+    get:
+      tags:
+        - profile
+      parameters:
+        - name: owner
+          in: path
+          description: ownerID
+          required: true
+          schema:
+            type: string
+            format: ccid
+        - name: semanticid
+          in: path
+          description: semanticID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Profile'
+
+  # apiV1.GET("/profiles", profileHandler.Query)
+  /profiles:
+    get:
+      tags:
+        - profile
+      parameters:
+        - name: author
+          in: query
+          description: authorID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: schema
+          in: query
+          description: schema URL
+          required: true
+          schema:
+            type: string
+            format: url
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/profile'
+
+  # apiV1.GET("/profile/:id/associations", associationHandler.GetAttached)
+  /profile/{id}/associations:
+    get:
+      tags:
+        - profile
+      parameters:
+        - name: id
+          in: path
+          description: profileID
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Association'
+
+  # timeline
+  # apiV1.GET("/timeline/:id", timelineHandler.Get)
+  /timeline/{id}:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: xid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/timeline'
+
+  # apiV1.GET("/timeline/:id/query", timelineHandler.Query)
+  /timeline/{id}/query:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: xid
+        - name: schema
+          in: query
+          schema:
+            type: string
+            format: url
+        - name: owner
+          in: query
+          schema:
+            type: string
+            format: ccid
+        - name: author
+          in: query
+          schema:
+            type: string
+            format: ccid
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: datetime
+        - name: limit
+          in: query
+          schema:
+            type: number
+
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/timelineItem'
+
+
+  # apiV1.GET("/timeline/:id/associations", associationHandler.GetAttached)
+  /timeline/{id}/associations:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: xid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Association'
+
+  # apiV1.GET("/timelines", timelineHandler.List)
+  /timelines:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: schema
+          in: query
+          required: true
+          schema:
+            type: string
+            format: url
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/timeline'
+
+  # apiV1.GET("/timelines/mine", timelineHandler.ListMine)
+  /timelines/mine:
+    get:
+      tags:
+        - timeline
+      security:
+        - LOCAL: []
+      parameters:
+        - name: schema
+          in: query
+          required: true
+          schema:
+            type: string
+            format: url
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/timeline'
+
+
+  # apiV1.GET("/timelines/recent", timelineHandler.Recent)
+  /timelines/recent:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: timelines
+          in: query
+          required: true
+          schema:
+            type: string
+            format: comma sectioned timelineID list
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/timelineItem'
+
+
+  # apiV1.GET("/timelines/range", timelineHandler.Range)
+  /timelines/range:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: timelines
+          in: query
+          required: true
+          schema:
+            type: string
+            format: comma sectioned timelineID list
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: string
+            format: datetime
+        - name: until
+          in: query
+          required: true
+          schema:
+            type: string
+            format: datetime
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/timeline'
+
+  # apiV1.GET("/timelines/retracted", timelineHandler.Retracted)
+  /timelines/retracted:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: timelines
+          in: query
+          required: true
+          schema:
+            type: string
+            format: comma sectioned timelineID list
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        additionalProperties:
+                          type: array
+                          items:
+                            type: string
+
+  # apiV1.GET("/timelines/realtime", timelineHandler.Realtime)
+  /timelines/realtime:
+    get:
+      tags:
+        - timeline
+      summary: connect to websocket
+      responses:
+        '200':
+          description: Successful operation
+
+
+  # apiV1.GET("/chunks/itr", timelineHandler.GetChunkItr)
+  /chunks/itr:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: timelines
+          in: query
+          required: true
+          schema:
+            type: string
+            format: comma sectioned timelineID list
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        additionalProperties:
+                          type: string
+
+  # apiV1.GET("/chunks/body", timelineHandler.GetChunkBody)
+  /chunks/body:
+    get:
+      tags:
+        - timeline
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+                        additionalProperties:
+                          $ref: '#/components/schemas/Chunk'
+
+  # subscription
+  # apiV1.GET("/subscription/:id", subscriptionHandler.GetSubscription)
+  /subscription/{id}:
+    get:
+      tags:
+        - subscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Subscription'
+
+  # apiV1.GET("/subscription/:id/associations", associationHandler.GetAttached)
+  /subscription/{id}/associations:
+    get:
+      tags:
+        - subscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Association'
+
+  # apiV1.GET("/subscriptions/mine", subscriptionHandler.GetOwnSubscriptions, auth.Restrict(auth.ISLOCAL))
+  /subscriptions/mine:
+    get:
+      tags:
+        - subscription
+      security:
+        - LOCAL: []
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Subscription'
+
+  # job
+  # apiV1.GET("/jobs", jobHandler.List, auth.Restrict(auth.ISREGISTERED))
+  # apiV1.POST("/jobs", jobHandler.Create, auth.Restrict(auth.ISREGISTERED))
+  /jobs:
+    get:
+      summary: get job list
+      tags:
+        - job
+      security:
+        - LOCAL: []
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Job'
+    post:
+      summary: create job
+      tags:
+        - job
+      security:
+        - LOCAL: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Job'
+
+
+  # apiV1.DELETE("/job/:id", jobHandler.Cancel, auth.Restrict(auth.ISREGISTERED))
+  /job/{id}:
+    delete:
+      summary: cancel job
+      tags:
+        - job
+      security:
+        - LOCAL: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/Job'
+
+  # userkv
+  # apiV1.GET("/kv/:key", userkvHandler.Get, auth.Restrict(auth.ISREGISTERED))
+  /kv/{key}:
+    get:
+      summary: get user kv
+      tags:
+        - userkv
+      security:
+        - LOCAL: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: string
+  # apiV1.PUT("/kv/:key", userkvHandler.Upsert, auth.Restrict(auth.ISREGISTERED))
+    put:
+      summary: set user kv
+      tags:
+        - userkv
+      security:
+        - LOCAL: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: string
+
+
+  # notification
+  # apiV1.POST("/notification", notificationHandler.Subscribe, auth.Restrict(auth.ISREGISTERED))
+  /notification:
+    post:
+      summary: subscribe notification
+      tags:
+        - notification
+      security:
+        - LOCAL: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationSubscription'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        type: object
+
+  # apiV1.GET("/notification/:owner/:vendor_id", notificationHandler.Get, auth.Restrict(auth.ISREGISTERED))
+  # apiV1.DELETE("/notification/:owner/:vendor_id", notificationHandler.Delete, auth.Restrict(auth.ISREGISTERED))
+  /notification/{owner}/{vendor_id}:
+    get:
+      summary: get notification
+      tags:
+        - notification
+      security:
+        - LOCAL: []
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+        - name: vendor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/NotificationSubscription'
+
+    delete:
+      summary: unsubscribe notification
+      tags:
+        - notification
+      security:
+        - LOCAL: []
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+        - name: vendor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: ccid
+      responses:
+        '200':
+          description: Successful operation
+
+components:
+  schemas:
+    Response:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'OK'
+
+    Commit:
+      type: object
+      properties:
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        option:
+          type: string
+          format: json
+    Key:
+      type: object
+      properties:
+        id:
+          type: string
+        root:
+          type: string
+          format: ccid
+        parent:
+          type: string
+        enactDocument:
+          type: string
+          format: json
+        enactSignature:
+          type: string
+          format: signature
+        revokeDocument:
+          type: string
+          format: json
+        revokeSignature:
+          type: string
+          format: signature
+        validSince:
+          type: string
+        validUntil:
+          type: string
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: string
+        ccid:
+          type: string
+        csid:
+          type: string
+        tag:
+          type: string
+        score:
+          type: number
+        meta:
+          type: object
+        isScoreFixed:
+          type: boolean
+        dimension:
+          type: string
+        cdate:
+          type: string
+        mdate:
+          type: string
+        lastScraped:
+          type: string
+
+    Entity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: ccid
+        domain:
+          type: string
+          format: fqdn
+        tag:
+          type: string
+        score:
+          type: number
+        isScoreFixed:
+          type: boolean
+        affiliationDocument:
+          type: string
+        affiliationSignature:
+          type: string
+        tombstoneDocument:
+          type: string
+        tombstoneSignature:
+          type: string
+        alias:
+          type: string
+        cdate:
+          type: string
+        mdate:
+          type: string
+
+    Ack:
+      type: object
+      properties:
+        from:
+          type: string
+          format: ccid
+        to:
+          type: string
+          format: ccid
+        payload:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        author:
+          type: string
+          format: ccid
+        schema:
+          type: string
+          format: url
+        policy:
+          type: string
+          format: url
+        policyParams:
+          type: string
+          format: json
+        policyDefaults:
+          type: string
+          format: json
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        cdate:
+          type: string
+        associations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Association'
+        ownAssociations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Association'
+        timelines:
+          type: array
+          items:
+            type: string
+
+    Association:
+      type: object
+      properties:
+        id:
+          type: string
+        author:
+          type: string
+          format: ccid
+        owner:
+          type: string
+          format: ccid
+        schema:
+          type: string
+          format: url
+        target:
+          type: string
+        variant:
+          type: string
+        unique:
+          type: string
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        cdate:
+          type: string
+        timelines:
+          type: array
+          items:
+            type: string
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+        author:
+          type: string
+          format: ccid
+        schema:
+          type: string
+          format: url
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        associations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Association'
+        policy:
+          type: string
+          format: url
+        policyParams:
+          type: string
+          format: json
+        cdate:
+          type: string
+        mdate:
+          type: string
+        
+    Timeline:
+      type: object
+      properties:
+        id:
+          type: string
+        indexable:
+          type: boolean
+        owner:
+          type: string
+          format: ccid
+        author:
+          type: string
+          format: ccid
+        schema:
+          type: string
+          format: url
+        policy:
+          type: string
+          format: url
+        policyParams:
+          type: string
+          format: json
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        cdate:
+          type: string
+        mdate:
+          type: string
+    
+    TimelineItem:
+      type: object
+      properties:
+        resourceID:
+          type: string
+        timelineID:
+          type: string
+        owner:
+          type: string
+          format: ccid
+        author:
+          type: string
+          format: ccid
+        schema:
+          type: string
+          format: url
+        cdate:
+          type: string
+
+    Chunk:
+      type: object
+      properties:
+        key:
+          type: string
+        epoch:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/timelineItem'
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+          format: ccid
+        author:
+          type: string
+          format: ccid
+        indexable:
+          type: boolean
+        schema:
+          type: string
+          format: url
+        policy:
+          type: string
+          format: url
+        policyParams:
+          type: string
+          format: json
+        document:
+          type: string
+          format: json
+        signature:
+          type: string
+          format: signature
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionItem'
+        cdate:
+          type: string
+        mdate:
+          type: string
+
+    SubscriptionItem:
+      type: object
+      properties:
+        id:
+          type: string
+        subscription:
+          type: string
+        resolverType:
+          type: number
+        entity:
+          type: string
+          format: ccid
+        domain:
+          type: string
+          format: fqdn
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        author:
+          type: string
+          format: ccid
+        type:
+          type: string
+        payload:
+          type: string
+          format: json
+        scheduled:
+          type: string
+        status:
+          type: string
+        result:
+          type: string
+        createdAt:
+          type: string
+        completedAt:
+          type: string
+        traceID:
+          type: string
+
+    NotificationSubscription:
+      type: object
+      properties:
+        vendorID:
+          type: string
+          format: ccid
+        owner:
+          type: string
+          format: ccid
+        schemas:
+          type: array
+          items:
+            type: string
+            format: url
+        timelines:
+          type: array
+          items:
+            type: string
+            format: xid
+        subscription:
+          type: string
+        cdate:
+          type: string
+        mdate:
+          type: string
+
+  securitySchemes:
+    LOCAL:
+      type: http
+      scheme: bearer
+      description: local entity
+    REGISTERED:
+      type: http
+      scheme: bearer
+      description: registered entity
