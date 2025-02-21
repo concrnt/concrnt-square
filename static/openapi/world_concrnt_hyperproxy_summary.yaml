@@ -1,0 +1,36 @@
+openapi: 3.0.3
+info:
+  title: world.concrnt.hyperproxy.summary
+  version: 0.0.0
+servers:
+  - url: https://ariake.concrnt.net
+paths:
+
+	# e.GET("/summary", SummaryHandler)
+  /summary:
+    get:
+      summary: summerize target url
+      parameters:
+        - name: url
+          description: target url
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  icon:
+                    type: string
+                  description:
+                    type: string
+                  thumbnail:
+                    type: string
+

@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: world.concrnt.hyperproxy.image
+  version: 0.0.0
+servers:
+  - url: https://ariake.concrnt.net
+paths:
+
+	# e.GET("/image/*", ImageHandler)
+  /image/{query}/{url}:
+    get:
+      summary: summerize target url
+      parameters:
+        - name: query
+          description: query
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "x"
+        - name: url
+          description: target url
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uri
+          example: "https://concrnt.world"
+          allowReserved: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+

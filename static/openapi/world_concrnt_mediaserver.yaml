@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: mediaserver
+  version: 0.0.0
+servers:
+  - url: https://ariake.concrnt.net/search
+paths:
+
+	# e.GET("/user", func(c echo.Context) error {
+  /user:
+    get:
+      summary: get user info
+      security:
+        - REGISTERED: []
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/User'
+
+	# e.GET("/files", func(c echo.Context) error {
+	# e.POST("/files", func(c echo.Context) error {
+  /files:
+    get:
+      summary: get file list
+      security:
+        - REGISTERED: []
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilesResponse'
+
+    post:
+      summary: upload file
+      security:
+        - REGISTERED: []
+      requestBody:
+        content:
+          "*/*":
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      content:
+                        $ref: '#/components/schemas/File'
+
+	# e.DELETE("/file/:id", func(c echo.Context) error {
+  /file/{id}:
+    delete:
+      security:
+        - REGISTERED: []
+      summary: delete file
+      parameters:
+        - name: id
+          description: ファイルのID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: 'OK'
+
+components:
+  schemas:
+    Response:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'OK'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        totalBytes:
+          type: number
+        cdate:
+          type: string
+        mdate:
+          type: string
+
+    File:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        ownerId:
+          type: string
+        size:
+          type: number
+        mime:
+          type: string
+        cdate:
+          type: string
+
+    FilesResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        limit:
+          type: number
+        next:
+          type: string
+        prev:
+          type: string
+
+  securitySchemes:
+    REGISTERED:
+      type: http
+      scheme: bearer
+      description: registered entity
+

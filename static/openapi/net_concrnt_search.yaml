@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: cc-search
+  version: 0.0.0
+servers:
+  - url: https://ariake.concrnt.net/search
+paths:
+
+  # // search timeline
+	#e.GET("/timeline/:id", func(c echo.Context) error {
+  /timeline/{id}:
+    get:
+      summary: search timeline items
+      parameters:
+        - name: id
+          description: 検索対象のタイムラインのFQID
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q
+          description: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: offset
+          description: offset
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - type: object
+                    properties:
+                      limit:
+                        type: number
+                      offset:
+                        type: number
+                      content:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            owner:
+                              type: string
+
+components:
+  schemas:
+    Response:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'OK'
+

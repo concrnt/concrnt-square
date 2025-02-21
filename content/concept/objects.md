@@ -1,0 +1,86 @@
++++
+title="Objects"
+weight=5
++++
+
+#### Message
+メッセージは投稿などそのままの要素です。
+例えばサーバーからこれを取得してみます(IDのフォーマットやレスポンスの内容はVersion0)。
+
+> note:  
+> サーバー側から取得する際、メタデータでラップされるためjqでドキュメントの部分だけを取得しています。
+
+```json title: messageの取得(バージョン0)
+> 03/31 22:42 ~$ curl -s https://dev.concurrent.world/api/v1/message/570afc5c-5b1d-420b-9934-773fedf80801 | jq '.content.payload | fromjson'
+{
+  "signer": "CC707E9Aa446961E6e6C33e5d69d827e5420B69E1f",
+  "type": "Message",
+  "schema": "https://raw.githubusercontent.com/totegamma/concurrent-schemas/master/messages/note/0.0.1.json",
+  "body": {
+    "body": "帰りの電車で着席に失敗した :sadpolar:",
+    "emojis": {
+      "sadpolar": {
+        "imageURL": "https://fluffy.social/files/d7d34fc2-ac21-496d-b330-0f8531b5b0a7"
+      }
+    },
+    "mentions": []
+  },
+  "meta": {
+    "client": "develop.dqv3bovj4nar0.amplifyapp.com-develop-56f7b95"
+  },
+  "signedAt": "2024-03-29T14:46:08.176Z",
+  "keyID": "CK548AF905296C91B2BE410A95DC79231533d31cFd"
+}
+> 03/31 22:42 ~$
+```
+
+また、この情報は図9のインスペクターパネルから簡単に確認することもできます。
+メッセージの内容を見てみると、schemaとして謎のURLが指定されていますね。このschemaのURLの内容はこのようになっています。
+
+```json title: schemaの詳細
+> 03/31 22:48 ~$ curl https://raw.githubusercontent.com/totegamma/concurrent-schemas/master/messages/note/0.0.1.json
+{
+    "$id": "https://raw.githubusercontent.com/totegamma/concurrent-schemas/master/messages/note/0.0.1.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "body": {
+            "type": "string"
+        },
+        "emojis": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "imageURL": {
+                        "type": "string"
+                    },
+                    "animURL": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+
+        },
+        ...
+        // 一部省略
+        ...
+    },
+    "additionalProperties": false,
+    "required": ["body"]
+}
+> 03/31 22:48 ~$
+```
+
+このように、Concrntではメッセージと一言に言っても、その内容をjsonSchemaで分類・定義できるようなモデルを取っています。
+
+concurrent.worldはこの仕組みで通常の投稿・リプライ・リルートが分類されています。
+
+#### Association
+associationは、日本語で言うところの「関連付け」ですが、これはあるConcrntオブジェクトに対して第三者が情報を付与するのに使うことができます。
+分かりやすい例では、ふぁぼやリアクションがこれを用いることで実装可能です。より面白いのは、これがリプライやリルートのメッセージにも使えるということです。これらは「元のメッージに対するリプライ一覧の参照」のように、メッセージ間の関連を示すのに役立ちます。
+
+また、associationの所有者はその付与先のユーザーになります。これにより、付与されたユーザーは自由に受け取ったふぁぼやリアクションを消去することができます。
+これはリプライとの関連付けにおいて非常によく機能します。というのも、自分のメッセージに対して不快なリプライが付けられた際、そのリプライを自分のメッセージを見る人の視界から消すことができます。
+一方で、リプライした人のメッセージ自体は消去されないしできないので、その人の発言権までは侵害されず、適切なバランスが保たれます。
