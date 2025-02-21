@@ -1,5 +1,8 @@
-# Contribution Guide
-
++++
+title="Contribution Guide"
+weight=3
+date=2025-02-21T15:33:19+09:00
++++
 ## 機能の提案
 
 Concrnt Square フォーラムの [Feature Request](https://github.com/orgs/concrnt/discussions/categories/feature-request) へ提案をお願いします。
@@ -18,12 +21,12 @@ Concrntのコミュニティタイムライン[#コンカレ思いつき箱](htt
 ## Pull Request
 
 Pull Requestはいつでも歓迎しています。  
-ただし、Issuesで変更内容のコンセンサスを取った上でPull Requestを提出してください。  
+ただし、Issuesで変更内容のコンセンサスを取った上でPull Requestを提出してください。
 
 具体的には、下記の条件を満たす必要があります。
 - 送ろうとしているPull Requestに関連するIssueを提出済みであること
 - Pull Requestに関連するIssueに`triage/approved`のラベルが付加されていること
-- 関連するIssueへのリンクがPull Requestに添付されていること  
+- 関連するIssueへのリンクがPull Requestに添付されていること
 
 上記の条件を満たしていないPull Requestは、メンテナによって理由なくcloseされる可能性がありますのでご注意ください。
 
