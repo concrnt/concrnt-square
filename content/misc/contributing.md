@@ -8,7 +8,7 @@ date=2025-02-21T15:33:19+09:00
 
 ## 問題を見つけましたか？
 
-不具合当を発見した場合は、[Issue](https://github.com/totegamma/concurrent-world/issues)から起票してくださると助かります！
+不具合等を発見した場合は、[Issue](https://github.com/totegamma/concurrent-world/issues)から起票してくださると助かります！
 もし遭遇した不具合の詳細が分からない・自分の環境の問題かどうか分からない場合は、フォーラムで軽めに質問してみるとより良いでしょう。
 
 
