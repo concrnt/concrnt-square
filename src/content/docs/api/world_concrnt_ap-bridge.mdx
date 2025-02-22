@@ -1,0 +1,30 @@
+---
+title: "world.concrnt.ap-bridge"
+sortOrder: 6
+---
+
+準備中
+
+```go
+ap := e.Group("/ap")
+ap.GET("/nodeinfo/2.0", apHandler.NodeInfo)
+ap.GET("/acct/:id", apHandler.User)
+ap.POST("/acct/:id/inbox", apHandler.Inbox)
+ap.GET("/note/:id", apHandler.Note)
+
+ap.POST("/inbox", apHandler.Inbox)
+
+ap.GET("/api/entity", apiHandler.GetEntity, auth.Restrict(auth.ISREGISTERED)
+ap.GET("/api/entity/:ccid", apiHandler.GetEntity, auth.Restrict(auth.ISREGISTERED)
+ap.POST("/api/entity", apiHandler.CreateEntity, auth.Restrict(auth.ISREGISTERED)
+ap.POST("/api/follow/:id", apiHandler.Follow, auth.Restrict(auth.ISREGISTERED)
+ap.DELETE("/api/follow/:id", apiHandler.UnFollow, auth.Restrict(auth.ISREGISTERED)
+ap.GET("/api/resolve/:id", apiHandler.ResolvePerson, auth.Restrict(auth.ISREGISTERED)
+ap.GET("/api/stats", apiHandler.GetStats, auth.Restrict(auth.ISREGISTERED)
+ap.POST("/api/entities/aliases", apiHandler.UpdateEntityAliases, auth.Restrict(auth.ISREGISTERED)
+ap.GET("/api/import", apiHandler.ImportNote, auth.Restrict(auth.ISREGISTERED)
+ap.GET("/api/settings", apiHandler.GetUserSettings, auth.Restrict(auth.ISREGISTERED)
+ap.POST("/api/settings", apiHandler.UpdateUserSettings, auth.Restrict(auth.ISREGISTERED)
+```
+
+

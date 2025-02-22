@@ -1,0 +1,37 @@
+---
+title: Welcome to Concrnt Square
+description: Get started building your docs site with Starlight.
+template: splash
+hero:
+  tagline: Congrats on setting up a new Starlight project!
+  image:
+    file: ../../assets/Concrnt-Logo-Circle.svg
+  actions:
+    - text: コンセプトを知る
+      link: /concept
+      icon: right-arrow
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import { LinkCard } from '@astrojs/starlight/components';
+
+## Quick Links
+
+<CardGrid>
+    <LinkCard
+        href="/getting-started/app-dev/"
+        title="アプリケーションを作る"
+    ></LinkCard>
+    <LinkCard
+        href="getting-started/hosting"
+        title="サーバーを建てる"
+    ></LinkCard>
+    <LinkCard
+        href="getting-started/contribute"
+        title="開発に参加する"
+    ></LinkCard>
+    <LinkCard
+        href="api/net_concrnt_api"
+        title="API Reference"
+    ></LinkCard>
+</CardGrid>
