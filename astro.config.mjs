@@ -19,6 +19,10 @@ export default defineConfig({
 					label: 'Getting-Started',
                     items: [
                         {
+                            label: "使ってみる",
+                            autogenerate: { directory: 'getting-started/world' },
+                        },
+                        {
                             label: "アプリケーションを作る",
                             autogenerate: { directory: 'getting-started/app-dev' },
                         },
