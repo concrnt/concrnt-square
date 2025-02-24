@@ -33,8 +33,8 @@ export default defineConfig({
                     ]
 				},
                 {
-					label: 'api',
-					autogenerate: { directory: 'api' },
+					label: 'リファレンス',
+					autogenerate: { directory: 'reference' },
 				},
 
                 {

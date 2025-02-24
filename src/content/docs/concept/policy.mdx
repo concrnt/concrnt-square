@@ -7,9 +7,142 @@ sidebar:
 Concrntでは、リソースの読み書きをポリシーと呼ばれる仕組みを用いてプログラマブルに設定することができます。
 これにより、バックエンドに手を加えなくても鍵垢・サークルツイート・簡易的なDMなどを実装することができます。
 
-### ポリシーの仕組み
+### ポリシーの例
 
-[執筆中]
+以下のポリシーは、あるタイムラインに読み書きできるユーザーを制限するものです。
+
+ポリシーは以下のパラメーターで構成されています。
+
+- statements: 評価ルール
+  - timeline.distribute: タイムラインへの書き込み動作を表すaction
+  - timeline.message.read: タイムラインからのメッセージの読み込みを表すaction
+- paramSchema: 評価ルールに追加で与えるパラメーターの型を表すjson schema
+  - ui: paramSchemaの入力に際し、ユーザーインターフェースの型を指定する
+
+このポリシーを任意のタイムラインに対してアタッチしてパラメーターを設定することで、制限をかけることができます。
+
+```json
+{
+  "name": "timeline-inline-read-write",
+  "versions": {
+    "2024-07-01": {
+      "statements": {
+        "timeline.distribute": {
+          "condition": {
+            "op": "Or",
+            "args": [
+              {
+                "op": "LoadParam",
+                "const": "isWritePublic"
+              },
+              {
+                "op": "Contains",
+                "args": [
+                  {
+                    "op": "LoadParam",
+                    "const": "writer"
+                  },
+                  {
+                    "op": "RequesterID"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "timeline.message.read": {
+          "condition": {
+            "op": "Or",
+            "args": [
+              {
+                "op": "LoadParam",
+                "const": "isReadPublic"
+              },
+              {
+                "op": "Contains",
+                "args": [
+                  {
+                    "op": "LoadParam",
+                    "const": "reader"
+                  },
+                  {
+                    "op": "RequesterID"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "paramSchema": {
+        "type": "object",
+        "properties": {
+          "isWritePublic": {
+            "type": "boolean"
+          },
+          "isReadPublic": {
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "isWritePublic": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "writer": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "isReadPublic": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reader": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "required": [
+          "isWritePublic",
+          "isReadPublic",
+          "writer",
+          "reader"
+        ],
+        "ui": {
+          "writer": {
+            "ui:widget": "userPicker"
+          },
+          "reader": {
+            "ui:widget": "userPicker"
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 
 
