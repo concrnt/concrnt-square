@@ -713,7 +713,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/profile'
+                          $ref: '#/components/schemas/Profile'
 
   # apiV1.GET("/profile/:id/associations", associationHandler.GetAttached)
   /profile/{id}/associations:
@@ -767,7 +767,7 @@ paths:
                   - type: object
                     properties:
                       content:
-                        $ref: '#/components/schemas/timeline'
+                        $ref: '#/components/schemas/Timeline'
 
   # apiV1.GET("/timeline/:id/query", timelineHandler.Query)
   /timeline/{id}/query:
@@ -819,7 +819,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/timelineItem'
+                          $ref: '#/components/schemas/TimelineItem'
 
 
   # apiV1.GET("/timeline/:id/associations", associationHandler.GetAttached)
@@ -874,7 +874,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/timeline'
+                          $ref: '#/components/schemas/Timeline'
 
   # apiV1.GET("/timelines/mine", timelineHandler.ListMine)
   /timelines/mine:
@@ -903,7 +903,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/timeline'
+                          $ref: '#/components/schemas/Timeline'
 
 
   # apiV1.GET("/timelines/recent", timelineHandler.Recent)
@@ -931,7 +931,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/timelineItem'
+                          $ref: '#/components/schemas/TimelineItem'
 
 
   # apiV1.GET("/timelines/range", timelineHandler.Range)
@@ -971,7 +971,7 @@ paths:
                       content:
                         type: array
                         items:
-                          $ref: '#/components/schemas/timeline'
+                          $ref: '#/components/schemas/Timeline'
 
   # apiV1.GET("/timelines/retracted", timelineHandler.Retracted)
   /timelines/retracted:
@@ -1648,7 +1648,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/timelineItem'
+            $ref: '#/components/schemas/TimelineItem'
 
     Subscription:
       type: object
