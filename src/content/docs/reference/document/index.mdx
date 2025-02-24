@@ -1,0 +1,245 @@
+---
+title: ドキュメント
+---
+
+#### Affiliation
+
+特定ドメインへの所属を表明する
+
+```json
+{
+    type: "affiliation",
+    signer: CCID,
+    domain: FQID,
+    signedAt: string
+}
+```
+
+#### Tombstone
+
+アカウントの利用終了を表明する
+
+```json
+{
+    type: "tombstone",
+    signer: CCID,
+    reason: string,
+    signedAt: string
+}
+```
+
+#### Enact
+
+新しいサブキーtargetを有効化を表明する
+
+```json
+{
+    type: "enact",
+    signer: CCID,
+    keyID: CKID,
+    target: CKID,
+    root: CCID,
+    parent: CCID | CKID,
+    signedAt: string
+}
+```
+
+#### Revoke
+
+サブキーtargetの無効化を表明する
+
+```json
+{
+    type: "enact",
+    signer: CCID,
+    keyID: CKID,
+    target: CKID,
+    signedAt: string
+}
+```
+
+#### Ack
+
+あるアカウントへの信用を表明する
+
+```json
+{
+	type: "ack",
+	signer: CCID,
+    keyID: CKID,
+    from: CCID,
+    to: CCID,
+	signedAt: string
+}
+```
+
+#### Unack
+
+あるアカウントへの信用を撤回する
+
+```json
+{
+	type: "unack",
+	signer: CCID,
+    keyID: CKID,
+    from: CCID,
+    to: CCID,
+	signedAt: string
+}
+```
+
+#### Message
+
+投稿を作成する
+
+```json
+{
+	type: "message",
+	signer: CCID,
+    keyID: CKID,
+    schema: string,
+    body: any,
+    timelines: string[],
+    policy?: string,
+    policyParams?: string,
+    policyDefaults?: string,
+	signedAt: string
+}
+```
+
+#### Association
+
+あるリソースに対して関連付けを作成する
+
+```json
+{
+	type: "association",
+	signer: CCID,
+    keyID: CKID,
+    schema: string,
+    target: string,
+    body: any,
+    variant: string,
+    timelines: string[],
+	signedAt: string
+}
+```
+
+#### Profile
+
+新しいプロフィールを作成もしくはid/semanticIDで表されるプロフィールを更新する
+
+```json
+{
+	type: "profile",
+    id?: string,
+    semanticID?: string,
+	signer: CCID,
+    keyID: CKID,
+    schema: string,
+    body: any,
+	signedAt: string
+}
+```
+
+#### Timeline
+
+新しいタイムラインを作成もしくはid/semanticIDで表されるタイムラインを更新する
+
+```json
+{
+	type: "timeline",
+    id?: string,
+    semanticID?: string,
+	signer: CCID,
+    keyID: CKID,
+    schema: string,
+    body: any,
+    policy?: string,
+    policyParams?: string,
+    policyDefaults?: string,
+	signedAt: string
+}
+```
+
+#### Retract
+
+あるタイムライン上に存在するtargetリソースを、タイムライン上から切り離す
+
+```json
+{
+	type: "retract",
+	signer: CCID,
+    keyID: CKID,
+    timeline: string,
+    target: string,
+	signedAt: string
+}
+```
+
+#### Subscription
+
+新しいサブスクリプションを作成もしくはid/semanticIDで表されるサブスクリプションを更新する
+
+```json
+{
+	type: "subscription",
+    id?: string,
+    semanticID?: string,
+	signer: CCID,
+    keyID: CKID,
+    schema: string,
+    body: any,
+    policy?: string,
+    policyParams?: string,
+    policyDefaults?: string,
+	signedAt: string
+}
+```
+
+#### Subscribe
+
+あるサブスクリプションに新しいタイムラインを追加する
+
+```json
+{
+	type: "subscribe",
+	signer: CCID,
+    keyID: CKID,
+    subscription: string,
+    target: string,
+	signedAt: string
+}
+```
+
+
+#### Unsubscribe
+
+あるサブスクリプションから特定のタイムラインを除外する
+
+```json
+{
+	type: "unsubscribe",
+	signer: CCID,
+    keyID: CKID,
+    subscription: string,
+    target: string,
+	signedAt: string
+}
+```
+
+
+#### Delete
+
+targetリソースを削除する
+
+```json
+{
+	type: "delete",
+	signer: CCID,
+    keyID: CKID,
+    target: string,
+	signedAt: string
+}
+```
+
