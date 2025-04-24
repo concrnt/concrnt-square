@@ -1,7 +1,7 @@
-+++
-title="Step1 kubernetesのセットアップ"
-weight=1
-+++
+---
+title: "Step1 kubernetesのセットアップ"
+weight: 1
+---
 
 ## microk8sのインストール
 ```
@@ -154,6 +154,91 @@ totegamma@raspi5:~/concrnt-kustomize$
 - cm-files/code-of-conduct.txt: 行動規範を記載します。
 - cm-files/register-template.json: (必要であれば編集)ユーザーが登録する際に記入してもらう情報のテンプレートです。
 
+また、valuesをgit管理する等でセンシティブな情報を直接記載することが憚られる場合は、valuesのconfigpaths及びuseSecretを有効にし、secretsを使用することができます。
+
+<details>
+<summary>secrets.yaml</summary>
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: concrnt-secret
+stringData:
+  config.yaml: |
+    server:
+      dsn: "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable"
+      captchaSitekey: ""
+      captchaSecret: ""
+      vapidPublicKey: ""
+      vapidPrivateKey: ""
+    concrnt:
+      privatekey: ""
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: activitypub-secret
+stringData:
+  apconfig.yaml: |
+    apConfig:
+      proxyPriv: ""
+    server:
+      dsn: "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable"
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mediaserver-secret
+stringData:
+  bucketName: ""
+  endpointUrl: ""
+  accessKeyId: ""
+  accessKeySecret: ""
+  publicBaseUrl: ""
+  db_dsn: "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable"
+  quota: '1000000000'
+  region: 'auto'
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: search-secret
+stringData:
+  DB_DSN: "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable"
+  REDIS_URL: "redis:6379"
+  MEILISEARCH_URL: "http://meilisearch:7700"
+  MEILISEARCH_KEY: "concrnt-meilisearch"
+  MEILISEARCH_IDX: "concrnt"
+  PORT: "8000"
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+stringData:
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "postgres"
+  POSTGRES_DB: "concrnt"
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: meilisearch-secret
+stringData:
+  MEILI_MASTER_KEY: "concrnt-meilisearch"
+```
+
+</details>
+
 
 ## namespaceの作成
 ```
@@ -189,12 +274,6 @@ deployment.apps/concurrent-memcached created
 deployment.apps/concurrent-redis created
 cronjob.batch/db-backup created
 totegamma@raspi5:~/concrnt-kustomize$
-```
-
-一部の自動で反映されない設定を変更したときなど、手動で再起動を行いたい場合は次のコマンドを実行してください。
-
-```
-totegamma@raspi5:~/concrnt-kustomize$ microk8s kubectl rollout restart deployment/ccapi deployment/ccgateway -n concrnt
 ```
 
 

@@ -1,0 +1,67 @@
+---
+title: "Step 3: バックアップ設定"
+weight: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside>
+ここで提供されるバックアップの設定はあくまでも一例です。運用環境にそのまま当てはめられない場合は、cronjobを直接書き換えてカスタマイズすると良いでしょう。
+</Aside>
+
+
+オプションではありますが、定期バックアップを設定していると心強いです。
+
+ここでは、aws s3に定期的にDBのバックアップを作成するcronjobのマニフェストを紹介します。
+
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup
+spec:
+  schedule: 0 20 * * *
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: swissknife
+            image: ghcr.io/totegamma/swissknife:master
+            command:
+            - /bin/bash
+            - -cx
+            - |
+              FILENAME="$(date +'%Y%m%d-')concrnt.dump.zip"
+              pg_dump -Fc -d concrnt -h db -U postgres > db-concrnt.dump
+              zip $FILENAME db-concrnt.dump
+              aws s3 cp $FILENAME "s3://concurrent-world/backup/ariake/$FILENAME"
+            envFrom:
+            - secretRef:
+                name: db-backup-secret
+          restartPolicy: Never
+
+```
+
+必要な変数はsecretとして作成します。
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-backup-secret
+stringData:
+  PGPASSWORD: postgres
+  AWS_ACCESS_KEY_ID: < UPDATE ME >
+  AWS_SECRET_ACCESS_KEY: < UPDATE ME >
+  AWS_DEFAULT_REGION: ap-northeast-1
+```
+
+
+## 推奨事項
+毎日のバックアップを全て保存すると、当然ストレージ容量が増えていきます。
+
+AWS S3をはじめCloudflare R2などはオブジェクトのバージョニング機能を持っています。
+30日より古いデータを自動で削除するなど、適切な設定を行うことで、ストレージ容量を節約することができます。
+
