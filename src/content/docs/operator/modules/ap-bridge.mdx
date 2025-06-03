@@ -1,0 +1,96 @@
+---
+title: "ccworld-ap-bridge"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Activitypubモジュールは、ConcrntドメインをActivitypubのサーバーとしても認識できるようにし、他のActivitypubサーバーとの連携を可能にします。
+
+<Aside>
+Activitypubはその性質上、フォローしたユーザーの新着投稿などのデータを全て自身のサーバーに保存する必要がある為、ドメイン内のメッセージ数が増加します。
+</Aside>
+
+## Activitypub連携用のBotアカウントの作成
+通常アカウントと同様の方法で、webクライアントから新しいアカウントを作成します。このとき、プロフィール名はActivitypub用のbotであること、アイコンも分かりやすいものを設定しておくと良いでしょう。サブキーを生成する必要はありません。
+
+次に、作成したアカウントの秘密鍵(hex形式)を取得します。
+hex形式の秘密鍵は以下の手順で確認することができます。
+
+1. 開発者モードの有効化
+  `設定 > 一般`から開発者モードを有効化します
+2. `設定 > ID管理` からコピーできるようになります
+
+## Activitypubモジュールの有効化
+
+### k8sの場合
+ドメインを建てた際のvalues.yamlからactivitypubの項目を探し、設定します。
+
+```yaml
+activitypub:
+  enabled: true #ここをtrueに変更
+  image: ghcr.io/concrnt/ccworld-ap-bridge:latest
+  privatekey: <上の手順で取得した秘密鍵>
+```
+
+kubectl applyで設定を反映します。
+
+```bash
+$ microk8s kubectl kustomize . --enable-helm | microk8s kubectl apply -f -
+```
+
+その後、gatewayを再起動します。
+
+```bash
+~/concrnt-kustomize$ microk8s kubectl rollout restart deployment/ccapi -n concrnt
+```
+
+### docker-composeの場合
+
+docker-composeにサービスを追加します
+```yaml
+  apbridge:
+    image: ghcr.io/concrnt/ccworld-ap-bridge:v<最新のバージョン>
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./etc:/etc/concrnt/:ro
+    expose:
+      - 8000
+    networks:
+      - external
+      - internal
+```
+
+gateway.yamlにap-bridgeへの通信を追加します
+```yaml
+  - name: world.concrnt.ap-bridge
+    host: apbridge
+    port: 8000
+    path: /ap
+    preservePath: true
+    injectCors: true
+  - name: world.concrnt.webfinger
+    host: apbridge
+    port: 8000
+    path: /.well-known
+    preservePath: true
+    injectCors: true
+```
+
+サービス全体を再起動して完了です。
+
+## トラブルシューティング
+
+### proxyのアカウントを変更したい場合
+最初にproxyアカウントのCCIDが変更される場合、「すでにAP連携を有効にしている既存ユーザー」に影響が出ます。
+
+concrntのActivityPub受信タイムラインはセットアップ時に「本人とProxyユーザーのみ書き込み可能」な設定で作成されるため、
+変更後のProxyユーザーに既存タイムラインへの書き込み権限が無い状態になってしまいます。
+
+個々の既存ユーザーで新しいActivityPub proxyユーザーをフォローし、AP受信タイムラインの権限設定で新しいProxyに書き込み権限を付与することで修正できます。
+
+

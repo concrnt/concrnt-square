@@ -37,10 +37,13 @@ export default defineConfig({
                     ]
 				},
                 {
+					label: 'オペレーター向け',
+					autogenerate: { directory: 'operator' },
+				},
+                {
 					label: 'リファレンス',
 					autogenerate: { directory: 'reference' },
 				},
-
                 {
 					label: 'Misc',
 					autogenerate: { directory: 'misc' },
