@@ -20,13 +20,17 @@ Composeの構成ファイルが入ったリポジトリをクローンします�
 git clone https://github.com/concrnt/concrnt-compose
 ```
 
+<Aside>
+`concrnt-compose` リポジトリは `v1/`(旧仕様)と `v2/`(新仕様)の2構成に分かれています。このページはv1構成(`v1/`)のセットアップを解説します。以下のコマンドは `v1/` ディレクトリ内で実行してください。v1からv2への移行手順は[v1からv2への移行](../migration/)を参照してください。
+</Aside>
+
 起動する前に各種設定を完了してください。
 
 ### 2. 各種設定
 
 必要に応じてファイルを編集し各種設定を変更してください。
 
-#### **concrnt-compose/etc/config/config.yaml**
+#### **concrnt-compose/v1/etc/config/config.yaml**
 
 このファイルでConcrntドメインの基本設定を行います。
 
@@ -73,19 +77,19 @@ publickey:	 0290a6b90887c3da// ... //93dafe6016b221173d8416f0a28a2f0568e19
 </div>
 
 
-#### **concrnt-compose/etc/config/gateway.yaml**
+#### **concrnt-compose/v1/etc/config/gateway.yaml**
 
 `cctgateway` の設定ファイルが含まれます。基本的に設定を変更する必要はありません。
 
-#### **concrnt-compose/etc/config/apconfig.yaml**
+#### **concrnt-compose/v1/etc/config/apconfig.yaml**
 
 ActivityPubブリッジを利用する際に必要な設定項目が含まれます。
 
-#### **concrnt-compose/etc/static/\*.yaml**
+#### **concrnt-compose/v1/etc/static/\*.yaml**
 
 アカウント新規作成時に表示される各種注意事項や規約、管理者が収集したいデータについて定義するファイルが含まれます。
 
-#### **concrnt-compose/compose.yaml**
+#### **concrnt-compose/v1/compose.yaml**
 
 このファイルでConcrntの各サービスの立ち上げと構成を行います。デフォルトで最小限のサービスが起動するようになっています。必要に応じてコメントを外し、追加サービスを有効化することが可能です。
 
@@ -165,6 +169,6 @@ eyJhbGciO//...//UzNj_f7pj8a0nIwA
 
 #### CSIDが表示されない・APIがエラーを返す
 
-- `concrnt-compose/etc/config/config.yaml` は正しく設定されていますか？
+- `concrnt-compose/v1/etc/config/config.yaml` は正しく設定されていますか？
 - データベースとの接続はきちんとできていますか？DBの設定を変えた場合、DNSの値は一致していますか？
 

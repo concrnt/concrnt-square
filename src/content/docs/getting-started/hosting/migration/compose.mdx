@@ -1,0 +1,134 @@
+---
+title: "Docker Composeでの移行"
+description: Docker Composeで運用しているConcrntドメインをv1からv2へ移行する
+sidebar:
+    order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Docker Compose で運用しているドメインをv1からv2へ移行する手順です。
+
+ここでは並行運用は行わず、**v1のデータをv2へ移行してそのまま切り替える**流れで進めます。移行の間だけv1のデータベースを起動しておき、v2から接続してデータをコピーします。
+
+<Aside type="danger">
+作業を始める前に、必ずv1データベースのバックアップを取得してください。`v1/_composeData` ディレクトリごと退避しておくと安全です。
+</Aside>
+
+## 前提
+
+`concrnt-compose` リポジトリは `v1/` と `v2/` の2構成に整理されています。v2用のサンプル構成は `v2/` にあります。
+
+```
+git clone https://github.com/concrnt/concrnt-compose
+```
+
+すでにクローン済みの場合は最新化してください。
+
+## Step 1. v2の設定を行う
+
+`v2/etc/config/config.yaml` を編集します。v1の `v1/etc/config/config.yaml` を参照しながら、以下の値を設定してください。
+
+<Aside type="caution">
+`concrnt.fqdn` と `concrnt.privatekey` には、**v1と同じ値**を指定してください。ドメインの同一性を引き継ぐために必須です。
+</Aside>
+
+- `concrnt.fqdn` … v1と同じfqdn
+- `concrnt.privatekey` … v1と同じ秘密鍵
+- `concrnt.layer` … v1の `concrnt.dimension` と同じ値(通常 `concrnt-mainnet`)
+- `meta.*` … サーバー名やメンテナ情報(お好みで)
+
+<Aside>
+v1では設定キーが `concrnt.dimension` でしたが、v2では `concrnt.layer` に改名されています。値はそのまま引き継いでください。
+</Aside>
+
+## Step 2. v1のアプリを止めてデータベースだけ残す
+
+v2は公開ポート `8080` を使います。v1のゲートウェイと衝突するため、v1のアプリケーションコンテナを停止します。ただし**データベースは移行のため起動したまま**にしておきます。
+
+```
+docker compose -f v1/compose.yaml stop gateway api webui hyperproxy
+docker compose -f v1/compose.yaml up -d db
+```
+
+## Step 3. v2スタックを起動する
+
+```
+docker compose -f v2/compose.yaml up -d
+```
+
+`concrnt2` / `world-app` / `v2db` / `v2-redis` / `v2-memcached` / `hyperproxy` が起動します。この時点ではv2は空のデータベースで動いています。
+
+## Step 4. v1データベースをv2のネットワークへ接続する
+
+移行コンテナがv1のデータベースへ到達できるよう、稼働中のv1データベースコンテナをv2のネットワーク(`concrnt-v2-external`)へ `v1db` という別名で接続します。
+
+```
+docker network connect --alias v1db concrnt-v2-external $(docker compose -f v1/compose.yaml ps -q db)
+```
+
+## Step 5. 移行を実行する
+
+`v2/compose.yaml` の `migration` サービスの引数を、自分の環境に合わせて書き換えます。
+
+```yaml
+    command:
+      - conctl
+      - migrate
+      - v1-to-v2
+      - --from-csid
+      - <v1ドメインのCSID>      # ドメインのトップページに表示される ccs... の値
+      - --from-dsn
+      - postgres://postgres:postgres@v1db:5432/concrnt   # そのままでOK
+      - --from-fqdn
+      - example.tld            # v1と同じfqdn
+      - --dest-dsn
+      - postgres://postgres:postgres@v2db:5432/concrnt   # そのままでOK
+      - --dest-fqdn
+      - example.tld            # v1と同じfqdn
+      # 移行対象から除外したいアカウントがあれば指定
+      # - --ignore-ccids
+      # - con1xxxx...
+```
+
+| 項目 | 説明 |
+|---|---|
+| `--from-csid` | 移行元(v1)ドメインのCSID。ドメインのトップページに表示される `ccs...` の値です。 |
+| `--from-dsn` | v1データベースへの接続文字列。Step 4で付けた別名 `v1db` を使うのでそのままで構いません。 |
+| `--from-fqdn` / `--dest-fqdn` | どちらもv1と同じfqdnを指定します。 |
+| `--dest-dsn` | v2データベース(`v2db`)への接続文字列。そのままで構いません。 |
+| `--ignore-ccids` | 移行対象から除外するアカウントのCCID。不要ならコメントアウトのままにします。 |
+
+書き換えたら、`migration` サービスを単発で実行します(`profiles: migration` により通常の `up` では起動しません)。
+
+```
+docker compose -f v2/compose.yaml run --rm migration
+```
+
+<Aside type="caution">
+データ量によっては時間がかかります。エラーなく完了することを確認してください。失敗した場合は原因を解消し、v2データベース(`v2/_composeData/db`)を初期化してからやり直してください。
+</Aside>
+
+## Step 6. 動作を確認して切り替える
+
+ブラウザで自分のfqdnにアクセスし、v2のトップページ(CSID表示)が返ることを確認します。次にWebクライアント [https://concrnt.world](https://concrnt.world) から既存のアカウントでログインし、過去のタイムラインやメッセージが表示されることを確認してください。
+
+Cloudflare Tunnel やリバースプロキシを利用している場合、転送先がv2の公開ポート(`concrnt2` の `8080`)を向くように設定します。v1と同じホストの `8080` を引き続き利用しているため、多くの場合は追加の変更は不要です。
+
+## Step 7. v1を撤去する
+
+移行と動作確認が完了したら、v1スタックを停止・削除します。
+
+```
+docker compose -f v1/compose.yaml down
+```
+
+<Aside>
+`v1/_composeData` はしばらく削除せず、バックアップとして保全しておくことをおすすめします。問題がないことを十分に確認してから削除してください。
+</Aside>
+
+以降はv2単独での運用となります。招待コードの発行など、日常的な運用コマンドはv2では以下のように実行します。
+
+```
+docker compose -f v2/compose.yaml run --rm concrnt2 conctl generate invite
+```

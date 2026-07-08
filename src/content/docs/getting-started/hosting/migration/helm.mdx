@@ -1,0 +1,184 @@
+---
+title: "Helmでの移行"
+description: Helm/Kubernetesで運用しているConcrntドメインをv1からv2へ移行する
+sidebar:
+    order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Kubernetes + Helm で運用しているドメインをv1からv2へ移行する手順です。
+
+移行は3つのチャートを段階的に切り替えていく形で進めます。
+
+1. **`concrnt`**(v1)… 現在運用中のチャート
+2. **`concrnt2-migration`** … v1とv2の両スタックを併設する移行用チャート
+3. **`concrnt2`**(v2)… v1を撤去した純v2チャート
+
+`concrnt2-migration` チャートは、既存のv1データベース(`db`)を再利用しつつv2用のデータベース(`v2db`)を新たに立ち上げ、両者を同時に稼働させます。この状態で移行コマンドを実行してv1のデータをv2へコピーし、最後に純v2チャートへ切り替えます。
+
+<Aside type="danger">
+作業を始める前に、必ずv1データベースのバックアップを取得してください。
+</Aside>
+
+チャートは以下のHelmリポジトリで公開されています。
+
+```
+helm repo add concrnt https://concrnt.github.io/helmcharts
+helm repo update
+```
+
+<Aside>
+リポジトリを追加する代わりに、[helmchartsリポジトリ](https://github.com/concrnt/helmcharts)を`git clone`して`charts/`配下のチャートをローカルパス指定で使うこともできます。
+</Aside>
+
+## Step 1. 移行用チャート(concrnt2-migration)へ切り替える
+
+現在v1の `concrnt` チャートで使っている `values.yaml` に、v2側の設定(`concrnt2:` ブロック)を追記します。
+
+<Aside type="caution">
+`concrnt2.fqdn` と `concrnt2.privatekey` には、**v1と同じ値**(`concrnt.fqdn` / `concrnt.privatekey`)を指定してください。ドメインの同一性を引き継ぐために必須です。
+</Aside>
+
+```yaml
+# 既存のv1設定(そのまま)
+concrnt:
+  fqdn: example.tld
+  privatekey: <v1と同じ秘密鍵>
+  dimension: concrnt-mainnet
+  # ...
+
+# v2側の設定(追記)
+concrnt2:
+  fqdn: example.tld          # v1と同じfqdn
+  privatekey: <v1と同じ秘密鍵>  # v1と同じ秘密鍵
+  layer: concrnt-mainnet
+  registration: invite
+```
+
+同じリリース名で `concrnt2-migration` チャートへアップグレードします。
+
+```
+helm upgrade <リリース名> concrnt/concrnt2-migration -n <namespace> -f values.yaml
+```
+
+これにより、既存のv1データベースのPVC(`postgres-varlib`)はそのまま維持され、v2スタック(`concrnt2` / `world-app` / `v2db` / `v2-redis` / `v2-memcached`)が追加で起動します。公開エンドポイントはv2の `concrnt2` に切り替わり、`/api/v1` や `/ap` などのレガシーパスは内部で `ccgateway`(v1)へプロキシされます。
+
+Podがすべて起動したことを確認してください。
+
+```
+kubectl get pods -n <namespace>
+```
+
+## Step 2. 移行ジョブを実行する
+
+データ移行は `conctl migrate v1-to-v2` コマンドで行います。以下は移行ジョブのサンプル(`migration.yaml`)です。`concrnt2-migration` チャートを展開したものと**同じnamespace**に適用してください。
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: v1-v2-migration
+  namespace: denken
+spec:
+  suspend: true
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: migration
+              image: ghcr.io/concrnt/concrnt:v1.10.0-beta4
+              command:
+                - conctl
+                - migrate
+                - v1-to-v2
+                - --from-csid
+                - ccs15zt7a8kxv2k9pguy4m6wfucwj2makte8fzfl7v
+                - --from-dsn
+                - postgres://postgres:postgres@db:5432/concrnt
+                - --from-fqdn
+                - denken.concrnt.net
+                - --dest-dsn
+                - postgres://postgres:postgres@v2db:5432/concrnt
+                - --dest-fqdn
+                - denken.concrnt.net
+                - --ignore-ccids
+                - con1zzvye2yc84a7vx7eyznaseghhnmsvtss4aavjr
+              volumeMounts:
+                - mountPath: /etc/concrnt/config
+                  name: concrnt2-config
+          volumes:
+            - name: concrnt2-config
+              projected:
+                defaultMode: 420
+                sources:
+                  - configMap:
+                      name: concrnt2-config
+                  - secret:
+                      name: concrnt2-secret
+```
+
+各項目の意味と、自分の環境に合わせて書き換える箇所は以下のとおりです。
+
+| 項目 | 説明 |
+|---|---|
+| `metadata.namespace` | `concrnt2-migration` を展開したnamespaceに合わせます。 |
+| `spec.suspend: true` | 誤って定期実行されないよう、CronJobは停止状態にしておきます(手動でJobを起動します)。 |
+| `image` | `conctl migrate` サブコマンドを含むイメージです。 |
+| `--from-csid` | 移行元(v1)ドメインのCSIDを指定します。 |
+| `--from-dsn` | v1データベースへの接続文字列。移行チャートでは `db` サービスです。 |
+| `--from-fqdn` | 移行元ドメインのfqdn。 |
+| `--dest-dsn` | v2データベースへの接続文字列。移行チャートでは `v2db` サービスです。 |
+| `--dest-fqdn` | 移行先ドメインのfqdn。**`--from-fqdn` と同じ値**を指定します。 |
+| `--ignore-ccids` | 移行対象から除外するアカウントのCCID(例: v1用のAPIサーバーエージェント)。不要なら削除します。 |
+
+<Aside>
+`volumes` で `concrnt2-config` と `concrnt2-secret` をマウントしているのは、移行コマンドがv2の設定(config.yaml)を参照するためです。これらは `concrnt2-migration` チャートが生成したものをそのまま利用します(`concrnt2-secret` は `concrnt2.useSecret: true` の場合のみ存在します)。
+</Aside>
+
+適用したら、CronJobから手動でJobを起動して移行を実行します。
+
+```
+kubectl apply -f migration.yaml -n <namespace>
+kubectl create job --from=cronjob/v1-v2-migration v1-v2-migration-run-1 -n <namespace>
+```
+
+進捗はログで確認します。
+
+```
+kubectl logs -f job/v1-v2-migration-run-1 -n <namespace>
+```
+
+<Aside type="caution">
+データ量によっては移行に時間がかかります。ジョブが正常に完了(Completed)することを確認してから次のステップへ進んでください。エラーが出た場合は原因を解消し、v2データベースを初期化してからやり直してください。
+</Aside>
+
+## Step 3. 移行結果を確認する
+
+Webクライアント [https://concrnt.world](https://concrnt.world) から自分のドメインにアクセスし、既存のアカウントでログインできること、過去のタイムラインやメッセージが表示されることを確認します。
+
+## Step 4. 純v2チャート(concrnt2)へ切り替える
+
+移行が問題なく完了したら、v1スタックを撤去して純v2構成へ移行します。同じリリース名で `concrnt2` チャートへアップグレードしてください。
+
+```
+helm upgrade <リリース名> concrnt/concrnt2 -n <namespace> -f values.yaml
+```
+
+`v2db` / `v2-redis` / `v2-memcached` のPVCは維持されたまま、v1関連のコンポーネント(`ccgateway` / `ccapi` / `ccwebui` など)が削除されます。以降はv2単独での運用となります。
+
+<Aside>
+`concrnt2` チャートには `/api/v1` などのレガシーパスをv1へプロキシする設定はありません。このステップに進む前に、移行が完全に済んでいることを必ず確認してください。
+</Aside>
+
+不要になったv1のデータベースPVC(`postgres-varlib`)は、バックアップを保全したうえで削除してかまいません。
