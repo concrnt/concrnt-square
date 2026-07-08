@@ -1,15 +1,16 @@
 ---
 title: "Docker Compose"
-sortOrder: 2
+description: Docker Composeを使ってConcrnt(v2)ドメインをセットアップする
+sidebar:
+    order: 2
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-このページではDocker Composeを使ったConcrntドメインのセットアップ方法について解説します。
+このページではDocker Composeを使ったConcrnt(v2)ドメインのセットアップ方法について解説します。
 
 <Aside>
-Concrntの開発ではまず動作環境としてKubernetesをターゲットに整備が進められるため、最新のアップデートの情報がDocker Compose向けに再整理される間では時間がかかる可能性があります。
-また、コミュニティに質問をするときは、Composeを使っていることを併記すると良いでしょう。
+すでにv1系のドメインを運用していて、v2へ移行したい場合は[v1からv2への移行](/operator/migration/compose/)を参照してください。
 </Aside>
 
 ### 1. リポジトリを取得
@@ -20,9 +21,11 @@ Composeの構成ファイルが入ったリポジトリをクローンします�
 git clone https://github.com/concrnt/concrnt-compose
 ```
 
-<Aside>
-`concrnt-compose` リポジトリは `v1/`(旧仕様)と `v2/`(新仕様)の2構成に分かれています。このページはv1構成(`v1/`)のセットアップを解説します。以下のコマンドは `v1/` ディレクトリ内で実行してください。v1からv2への移行手順は[v1からv2への移行](../migration/)を参照してください。
-</Aside>
+`concrnt-compose` リポジトリは `v1/`(旧仕様)と `v2/`(新仕様)の2構成に分かれています。このページはv2構成(`v2/`)のセットアップを解説します。以下のコマンドは `v2/` ディレクトリ内で実行してください。
+
+```
+cd concrnt-compose/v2
+```
 
 起動する前に各種設定を完了してください。
 
@@ -30,13 +33,17 @@ git clone https://github.com/concrnt/concrnt-compose
 
 必要に応じてファイルを編集し各種設定を変更してください。
 
-#### **concrnt-compose/v1/etc/config/config.yaml**
+<Aside>
+v1では `config.yaml` のほかに `gateway.yaml` や `apconfig.yaml` がありましたが、v2ではゲートウェイ機能が本体に統合されたため、基本設定は `config.yaml` の1ファイルにまとまっています。
+</Aside>
+
+#### **concrnt-compose/v2/etc/config/config.yaml**
 
 このファイルでConcrntドメインの基本設定を行います。
 
 `concrnt.fqdn`
 
-コンカレントのFQDN≒ドメイン名を指定します。この情報は後で変更することが非常に困難なため、よく考えて定義してください。HTTPSといったスキームは不要です。 `fqdn: cc1gb.anyfrog.net` のように指定してください。
+ConcrntのFQDN≒ドメイン名を指定します。この情報は後で変更することが非常に困難なため、よく考えて定義してください。HTTPSといったスキームは不要です。 `fqdn: cc1gb.anyfrog.net` のように指定してください。
 
 `concrnt.registration`
 
@@ -44,10 +51,10 @@ git clone https://github.com/concrnt/concrnt-compose
 
 `concrnt.privatekey`
 
-サーバーが内部で利用する暗号鍵の設定を行います。 `compose.yaml` のあるディレクトリで下記コマンドを実行することで取得できる `privatekey` を貼り付けてください。他の各種情報は `privatekey` から復元できるため廃棄可能です。
+サーバーが内部で利用する暗号鍵の設定を行います。 `compose.yaml` のあるディレクトリ(`v2/`)で下記コマンドを実行することで取得できる `privatekey` を貼り付けてください。他の各種情報は `privatekey` から復元できるため廃棄可能です。
 
 ```
-docker compose run api conctl generate identity
+docker compose run --rm concrnt2 conctl generate identity
 // ... //
 ccid:		 con1u0099ujr8g9m// ... //c6hgyxzp
 mnemonic:	 avocado chimney // ... // faith excess blur gun
@@ -55,7 +62,15 @@ privatekey:	 69cc17321e531c6d// ... //46db5166d92ab56e0c69f4d5e0
 publickey:	 0290a6b90887c3da// ... //93dafe6016b221173d8416f0a28a2f0568e19
 ```
 
-`profile.*`
+`concrnt.layer`
+
+参加するネットワークを指定します。テスト用途では `concrnt-devnet`、本番用途では `concrnt-mainnet` を指定します。
+
+<Aside>
+v1では `concrnt.dimension` というキーでしたが、v2では `concrnt.layer` に改名されています。
+</Aside>
+
+`meta.*`
 
 サーバープロフィールを設定します。後から変更できます。
 
@@ -69,29 +84,20 @@ publickey:	 0290a6b90887c3da// ... //93dafe6016b221173d8416f0a28a2f0568e19
 | `maintainerName`  | メンテナの名前                   |
 | `maintainerEmail` | メンテナのメールアドレス              |
 
-`profile` に設定された値は Concrnt の中で表示され、いわばサーバーの看板のように表示されます。  
+`meta` に設定された値は Concrnt の中で表示され、いわばサーバーの看板のように表示されます。
 
 <div align="center">
     <img src="/images/compose/cw-profiles.png" width="500px" />
     <p>探索に並ぶサーバー名とアイコン</p>
 </div>
 
-
-#### **concrnt-compose/v1/etc/config/gateway.yaml**
-
-`cctgateway` の設定ファイルが含まれます。基本的に設定を変更する必要はありません。
-
-#### **concrnt-compose/v1/etc/config/apconfig.yaml**
-
-ActivityPubブリッジを利用する際に必要な設定項目が含まれます。
-
-#### **concrnt-compose/v1/etc/static/\*.yaml**
+#### **concrnt-compose/v2/etc/static/\***
 
 アカウント新規作成時に表示される各種注意事項や規約、管理者が収集したいデータについて定義するファイルが含まれます。
 
-#### **concrnt-compose/v1/compose.yaml**
+#### **concrnt-compose/v2/compose.yaml**
 
-このファイルでConcrntの各サービスの立ち上げと構成を行います。デフォルトで最小限のサービスが起動するようになっています。必要に応じてコメントを外し、追加サービスを有効化することが可能です。
+このファイルでConcrntの各サービスの立ち上げと構成を行います。デフォルトで最小限のサービス(`concrnt2` / `world-app` / `hyperproxy` / `v2db` / `v2-redis` / `v2-memcached`)が起動するようになっています。必要に応じてコメントを外し、追加サービスを有効化することが可能です。
 
 <Aside>
 各サービスは後から任意で有効化することができますので、初めての構築の場合は最小限でのセットアップを一度試してみるのがおすすめです。
@@ -105,21 +111,17 @@ Cloudflare Tunnelを利用する場合、コメントを外してトークンを
 固定IPアドレスやポート解放を行えない環境でドメインを起動する場合、この項目の設定は必須です。 「Cloudflare Tunnelを利用する」ページに移動し、各種設定を済ませてください。
 </Aside>
 
-`services.apbridge`
+`services.mediaserver2`
 
-ActivityPubブリッジの有効化を行います。ConcrntからActivityPubを実装しているサービスのユーザーと相互にフォローすることが可能になります。この設定を行う場合、必ず `etc/config/apconfig.yaml` の設定が必要です。また、 `etc/config/gateway.yaml` から `world.concrnt.ap-bridge` と `world.concrnt.webfinger` の項目をコメントから外し有効化する必要があります。
+デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。有効化する場合は `etc/config/config.yaml` の `services:` にある `world.concrnt.mediaserver` の項目もコメントから外してください。
 
-`services.mediaserver`
+`services.cc-search` && `services.meilisearch`
 
-デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。 `etc/config/gateway.yaml` から `world.concrnt.mediaserver` の項目をコメントから外し有効化する必要があります。
-
-`services.search` && `searvices.meilisearch`
-
-コミュニティ内検索を有効にします。 `etc/config/gateway.yaml` から `net.concrnt.search` の項目をコメントから外し有効化する必要があります。
+コミュニティ内検索を有効にします。有効化する場合は `etc/config/config.yaml` の `services:` にある `net.concrnt.search` の項目もコメントから外してください。
 
 ### 3. 起動
 
-下記コマンドで起動します。 `compose.yaml` が存在する場所で下記コマンドを実行してください。
+下記コマンドで起動します。 `compose.yaml` が存在する場所(`v2/`)で下記コマンドを実行してください。
 
 ```
 docker compose up -d
@@ -138,11 +140,10 @@ docker compose up -d
 
 Webクライアント [https://concrnt.world](https://concrnt.world) を用いて自身のドメインでアカウントを作成してください。
 
-
 `concrnt.registration` をデフォルト設定の `invite` で作成した場合、一度コンテナでコマンドを実行し招待コードを取得する必要があります。
 
 ```
-docker compose run api conctl generate invite
+docker compose run --rm concrnt2 conctl generate invite
 eyJhbGciO//...//UzNj_f7pj8a0nIwA
 ```
 
@@ -164,11 +165,10 @@ eyJhbGciO//...//UzNj_f7pj8a0nIwA
 #### 『このサイトにアクセスできません』と表示される
 
 - DNSにConcrntのFQDNが正しく登録されていますか？
-- ポートは正しく開放されていますか？
+- ポートは正しく開放されていますか？(既定では `8080` で公開されます)
 - サーバーとクライアントのグローバルIPが同じ場合、正しくアクセスできない場合があります。Cloudflare Tunnelの利用を検討してみてください。
 
 #### CSIDが表示されない・APIがエラーを返す
 
-- `concrnt-compose/v1/etc/config/config.yaml` は正しく設定されていますか？
-- データベースとの接続はきちんとできていますか？DBの設定を変えた場合、DNSの値は一致していますか？
-
+- `concrnt-compose/v2/etc/config/config.yaml` は正しく設定されていますか？
+- データベースとの接続はきちんとできていますか？DBの設定を変えた場合、DSNの値は一致していますか？

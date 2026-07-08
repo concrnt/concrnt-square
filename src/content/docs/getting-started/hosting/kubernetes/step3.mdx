@@ -1,67 +1,89 @@
 ---
-title: "Step 3: バックアップ設定"
-weight: 3
+title: "Step3 アクセスできるようにする"
+sidebar:
+    order: 7
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
+デプロイした `concrnt2` サービスに、インターネットからアクセスできるようにします。ここではCloudflare Tunnelを使う方法を紹介します。IngressやLoadBalancerが利用できる環境では、`concrnt2` サービス(ポート80)を公開しても構いません。
+
+## Cloudflareのアカウントとドメインの準備
+
+Cloudflareのアカウントを作成し、利用するドメインをCloudflareに登録してActiveにしておきます。
+
+## Cloudflare Tunnelの設定
+
+Zero TrustページからTunnelを作成します。Public hostnamesを以下の内容で設定します。
+
+```
+HTTP :// concrnt2.concrnt.svc.cluster.local
+```
+
 <Aside>
-ここで提供されるバックアップの設定はあくまでも一例です。運用環境にそのまま当てはめられない場合は、cronjobを直接書き換えてカスタマイズすると良いでしょう。
+v1ではゲートウェイ(`ccgateway...`)を指定していましたが、v2ではゲートウェイが本体に統合されたため、`concrnt2` サービスを指定します。namespaceを `concrnt` 以外にした場合は `concrnt2.<namespace>.svc.cluster.local` に読み替えてください。
 </Aside>
 
+OverviewのInstall and run a connectorの項目から、トークンっぽい文字列をコピーしておきます。
 
-オプションではありますが、定期バックアップを設定していると心強いです。
+## Cloudflaredをクラスターにデプロイ
 
-ここでは、aws s3に定期的にDBのバックアップを作成するcronjobのマニフェストを紹介します。
-
+以下の内容を`cloudflared-deployment.yaml`として作成してください。(ファイル中にトークンを設定する箇所があります)
 
 ```yaml
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: db-backup
+  labels:
+    app: cloudflared
+  name: cloudflared-deployment
+  namespace: concrnt
 spec:
-  schedule: 0 20 * * *
-  jobTemplate:
+  replicas: 1
+  selector:
+    matchLabels:
+      pod: cloudflared
+  template:
+    metadata:
+      labels:
+        pod: cloudflared
     spec:
-      template:
-        spec:
-          containers:
-          - name: swissknife
-            image: ghcr.io/totegamma/swissknife:master
-            command:
-            - /bin/bash
-            - -cx
-            - |
-              FILENAME="$(date +'%Y%m%d-')concrnt.dump.zip"
-              pg_dump -Fc -d concrnt -h db -U postgres > db-concrnt.dump
-              zip $FILENAME db-concrnt.dump
-              aws s3 cp $FILENAME "s3://concurrent-world/backup/ariake/$FILENAME"
-            envFrom:
-            - secretRef:
-                name: db-backup-secret
-          restartPolicy: Never
-
+      containers:
+      - command:
+        - cloudflared
+        - tunnel
+        - --metrics
+        - 0.0.0.0:2000
+        - run
+        args:
+        - --token
+        - <上で取得したトークン>
+        image: cloudflare/cloudflared:latest
+        name: cloudflared
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: 2000
+          failureThreshold: 1
+          initialDelaySeconds: 10
+          periodSeconds: 10
 ```
 
-必要な変数はsecretとして作成します。
+デプロイします。
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-backup-secret
-stringData:
-  PGPASSWORD: postgres
-  AWS_ACCESS_KEY_ID: < UPDATE ME >
-  AWS_SECRET_ACCESS_KEY: < UPDATE ME >
-  AWS_DEFAULT_REGION: ap-northeast-1
+```
+kubectl apply -f cloudflared-deployment.yaml
+kubectl get pods -n concrnt
 ```
 
+## ブラウザでアクセスを確認
 
-## 推奨事項
-毎日のバックアップを全て保存すると、当然ストレージ容量が増えていきます。
+ブラウザで設定したドメインにアクセスし、Concrntドメインのトップページ(CSID表示)が返れば成功です。
 
-AWS S3をはじめCloudflare R2などはオブジェクトのバージョニング機能を持っています。
-30日より古いデータを自動で削除するなど、適切な設定を行うことで、ストレージ容量を節約することができます。
+webクライアント [https://concrnt.world](https://concrnt.world) で新しくユーザーを作成する際にカスタムを選択し、自分のドメインを入力することで自分のサーバーにアカウントを作成することができます。
 
+`concrnt2.registration` を `invite` にしている場合は、招待コードが必要です。以下のコマンドで発行できます。
+
+```
+kubectl exec -n concrnt deploy/concrnt2 -- conctl generate invite
+```

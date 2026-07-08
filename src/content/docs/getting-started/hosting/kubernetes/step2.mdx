@@ -1,81 +1,103 @@
 ---
-title: "Step2 アクセスできるようにする"
-weight: 2
+title: "Step2 Helmチャートのデプロイ"
+sidebar:
+    order: 6
 ---
 
-## Cloudflareのアカウントを作成
-[Cloudflare アカウントの新規作成手順](https://dev.classmethod.jp/articles/how-to-create-a-new-cloudflare-account/)を参考にアカウントを作成してください。
+import { Aside } from '@astrojs/starlight/components';
 
-## Cloudflareにドメインを登録
-cloudflare上で新しいドメインを購入したり、よそから移管したり、事情がある人はNameServerだけCloudflareに向けたりしてください。
+Concrnt(v2)のHelmチャート `concrnt2` を使ってドメインをデプロイします。
 
-## CloudflareTunnelsの設定
-[はじめてのCloudflare Tunnel その１ Cloudflare Tunnelを試してみる](https://zenn.dev/kameoncloud/articles/1433b8b26f032c)を参考に無料プランで設定してみてください。
+## Helmリポジトリの追加
 
-Public hostnamesを以下の内容で設定します。
 ```
-HTTP :// ccgateway.concrnt.svc.cluster.local
+helm repo add concrnt https://concrnt.github.io/helmcharts
+helm repo update
 ```
 
-OverviewのInstall and run a connectorの項目から、トークンっぽい文字列をコピーしておきます。
+<Aside>
+リポジトリを追加する代わりに、[helmchartsリポジトリ](https://github.com/concrnt/helmcharts)を`git clone`して`charts/concrnt2`をローカルパス指定で使うこともできます。
+</Aside>
 
-## Cloudflaredをクラスターにデプロイ
+## namespaceの作成
 
-以下の内容を`cloudflared-deployment.yaml`として作成してください。(ファイル中にトークンを設定する箇所があります)
+```
+kubectl create namespace concrnt
+```
+
+## 秘密鍵の生成
+
+サーバーが内部で利用する秘密鍵を生成します。手元にDockerがあれば、以下のコマンドで取得できます。
+
+```
+docker run --rm ghcr.io/concrnt/concrnt:latest conctl generate identity
+```
+
+表示された `privatekey` の値を次の `values.yaml` に設定します。他の情報は `privatekey` から復元できるため保存は必須ではありませんが、`mnemonic` は大切に保管しておくと安心です。
+
+## values.yaml の作成
+
+デプロイの設定を `values.yaml` に記述します。最低限、以下の項目を設定してください。チャートの既定値は[values.yaml](https://github.com/concrnt/helmcharts/blob/main/charts/concrnt2/values.yaml)を参照してください。
+
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app: cloudflared
-  name: cloudflared-deployment
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      pod: cloudflared
-  template:
-    metadata:
-      creationTimestamp: null
-      labels:
-        pod: cloudflared
-    spec:
-      containers:
-      - command:
-        - cloudflared
-        - tunnel
-        - --metrics
-        - 0.0.0.0:2000
-        - run
-        args:
-        - --token
-        - <上で取得したトークン>
-        image: cloudflare/cloudflared:latest
-        name: cloudflared
-        livenessProbe:
-          httpGet:
-            path: /ready
-            port: 2000
-          failureThreshold: 1
-          initialDelaySeconds: 10
-          periodSeconds: 10
+concrnt2:
+  # fqdnはドメインの識別子です。起動後の変更は非常に困難なのでよく考えて決めてください。
+  fqdn: example.tld
+  # 'open'(誰でも登録可) / 'invite'(招待制) / 'close'(新規停止)
+  registration: invite
+  # 上で生成した privatekey
+  privatekey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  # テスト用: concrnt-devnet / 本番用: concrnt-mainnet
+  layer: concrnt-mainnet
+
+profile:
+  nickname: concrnt-domain
+  description: domain description
+  themeColor: "#20193b"
+  maintainerName: changeme
+  maintainerEmail: changeme@example.com
+
+legal:
+  # 利用規約(空でも動作します。運用する場合は必ず記載してください)
+  tos: ""
 ```
 
-デプロイ
+<Aside>
+`values.yaml` をGit管理する等でセンシティブな情報(privatekeyやVAPIDキー等)を直接記載したくない場合は、`concrnt2.useSecret: true` を設定し、`concrnt2-secret` という名前のSecretに `config.yaml` を用意することで秘匿できます。
+</Aside>
+
+## デプロイ
+
 ```
-microk8s kubectl apply -f cloudflared-deployment.yaml
+helm install concrnt concrnt/concrnt2 -n concrnt -f values.yaml
 ```
 
-デプロイの確認
+設定を変更した場合は、同じリリース名でアップグレードすることで反映できます。
+
 ```
-microk8s kubectl get pods
+helm upgrade concrnt concrnt/concrnt2 -n concrnt -f values.yaml
 ```
 
-## ブラウザでアクセスを確認
+## デプロイの確認
 
-ブラウザで設定したドメインに対してアクセスができれば成功です！
+```
+kubectl get pods -n concrnt
+```
 
-webクライアント [https://concrnt.world](https://concrnt.world) で新しくユーザーを作成する際いカスタムを選択し、自分のドメインを入力することで自分のサーバーにアカウントを作成することができます。
+すべてのPodが `Running` 状態になっていることを確認してください(applyしてすぐは `Pending` や再起動中になっていることがあります)。
 
-[https://square.concrnt.net/operator/boot/#連合](https://square.concrnt.net/operator/boot/#連合)を参考に、ほかのサーバーにもアクセスできるか確認してみてください。
+```
+NAME                         READY   STATUS    RESTARTS   AGE
+concrnt2-xxxxxxxxxx-xxxxx     1/1     Running   0          60s
+world-app-xxxxxxxxxx-xxxxx    1/1     Running   0          60s
+v2db-0                        1/1     Running   0          60s
+v2-redis-0                    1/1     Running   0          60s
+v2-memcached-xxxxxxxxx-xxxxx  1/1     Running   0          60s
+hyperproxy-xxxxxxxxxx-xxxxx   1/1     Running   0          60s
+```
 
+公開エンドポイントは `concrnt2` サービス(ClusterIP、ポート80)です。外部からアクセスできるようにする手順は[Step3 アクセスできるようにする](../step3/)へ進みます。
+
+<Aside>
+より多くのレプリカで運用したい場合は、`concrnt2.cluster.enabled: true` を設定してから `concrnt2.replicas` を増やしてください。リーダー選出を行う `k8s-elector` サイドカーが各レプリカに追加されます。
+</Aside>

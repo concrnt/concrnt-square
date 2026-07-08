@@ -45,6 +45,10 @@ export default defineConfig({
 					autogenerate: { directory: 'reference' },
 				},
                 {
+					label: 'Archive',
+					autogenerate: { directory: 'archive' },
+				},
+                {
 					label: 'Misc',
 					autogenerate: { directory: 'misc' },
 				},
