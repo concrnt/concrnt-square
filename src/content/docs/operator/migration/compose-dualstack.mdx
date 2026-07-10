@@ -1,0 +1,160 @@
+---
+title: "Docker Composeでの並行運用移行"
+description: Docker Composeでv1とv2を同時起動しながらv1からv2へ移行する
+sidebar:
+    order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Docker Compose で運用しているドメインを、**v1とv2を並行運用(同時起動)しながら**v1からv2へ移行する手順です。
+
+[通常のCompose移行手順](./compose/)がv1を止めてv2へ切り替えるのに対し、こちらはHelmの `concrnt2-migration` チャートに相当する構成をComposeで実現します。v2の `concrnt2` が公開エンドポイントとなり、`/api/v1` や `/ap` などのレガシーパスは内部でv1の `gateway` へプロキシされます。移行期間中もv1のAPIやAPブリッジを動かし続けたい場合はこちらを利用してください。
+
+<Aside type="danger">
+作業を始める前に、必ずv1データベースのバックアップを取得してください。`v1/_composeData` ディレクトリごと退避しておくと安全です。
+</Aside>
+
+<Aside type="caution">
+並行運用中、**v1とv2のデータは同期されません**。移行コマンドは一回限りのコピーであり、移行実行後にv1側へ書き込まれた新しいデータはv2へ反映されません。並行運用はあくまでレガシークライアントやAPブリッジの互換性を保つための過渡的な構成と考えてください。
+</Aside>
+
+## 前提
+
+`concrnt-compose` リポジトリの `dualstack/` にあるデュアルスタック構成を使います。この構成は設定ファイルとデータディレクトリとして `v1/` と `v2/` のものをそのまま参照するため、既存のv1構成を `concrnt-compose` の `v1/` ディレクトリ構造で運用していることが前提です。
+
+```
+git clone https://github.com/concrnt/concrnt-compose
+```
+
+すでにクローン済みの場合は最新化してください。
+
+## Step 1. v2の設定を行う
+
+`v2/etc/config/config.yaml` を編集します。v1の `v1/etc/config/config.yaml` を参照しながら、以下の値を設定してください。
+
+<Aside type="caution">
+`concrnt.fqdn` と `concrnt.privatekey` には、**v1と同じ値**を指定してください。ドメインの同一性を引き継ぐために必須です。
+</Aside>
+
+- `concrnt.fqdn` … v1と同じfqdn
+- `concrnt.privatekey` … v1と同じ秘密鍵
+- `concrnt.layer` … v1の `concrnt.dimension` と同じ値(通常 `concrnt-mainnet`)
+- `meta.*` … サーバー名やメンテナ情報(お好みで)
+
+続けて、同じファイルの `services:` にある `net.concrnt.legacy` ブロックの**コメントを外します**。これがレガシーパスをv1へプロキシする設定です。
+
+```yaml
+  - name: net.concrnt.legacy
+    host: gateway
+    port: 8080
+    paths:
+      - /api/v1
+      - /ap
+      - /services
+      - .well-known/webfinger
+      - .well-known/nodeinfo
+      - .well-known/host-meta
+      - /storage
+    preservePath: true
+```
+
+## Step 2. v1を止めてデュアルスタックを起動する
+
+v1スタックを停止し、代わりにデュアルスタック構成を起動します。データはバインドマウント(`v1/_composeData`)なので、コンテナを削除しても失われません。
+
+```
+docker compose -f v1/compose.yaml down
+docker compose -f dualstack/compose.yaml up -d
+```
+
+v1側(`gateway` / `api` / `webui` など)とv2側(`concrnt2` / `world-app` / `v2db` など)がまとめて起動します。ホストの `8080` を公開するのはv2の `concrnt2` だけで、v1の `gateway` へは `concrnt2` からの内部プロキシ経由でのみ到達します。`hyperproxy` はv1/v2共通のため1つだけ起動し、`/summary` や `/image` はv2側で直接処理されます。切り替えの間だけ短いダウンタイムが発生します。
+
+<Aside>
+v1でAPブリッジ(`apbridge`)を有効にしていた場合は、`dualstack/compose.yaml` 内のコメントアウトを外して引き続き起動してください。`/ap` や `/.well-known/webfinger` はレガシーパスとしてv1へプロキシされるため、連合も継続します。
+</Aside>
+
+## Step 3. 動作を確認する
+
+ブラウザで自分のfqdnにアクセスし、v2のトップページ(CSID表示)が返ることを確認します。あわせて、レガシーパスがv1へ届いていることを確認してください。
+
+```
+curl https://example.tld/api/v1/domain
+```
+
+v1のドメイン情報(JSON)が返れば、プロキシは正常に機能しています。
+
+Cloudflare Tunnel やリバースプロキシを利用している場合、v1と同じホストの `8080` を引き続き利用しているため、多くの場合は追加の変更は不要です。
+
+<Aside>
+旧ダッシュボード(`/web`)はv2配下では配信されません(`/` はworld-appが配信します)。これはHelmの移行チャートと同じ挙動です。
+</Aside>
+
+## Step 4. データ移行を実行する
+
+`dualstack/compose.yaml` の `migration` サービスの引数を、自分の環境に合わせて書き換えます。
+
+```yaml
+    command:
+      - conctl
+      - migrate
+      - v1-to-v2
+      - --from-csid
+      - <v1ドメインのCSID>      # ドメインのトップページに表示される ccs... の値
+      - --from-dsn
+      - postgres://postgres:postgres@db:5432/concrnt     # そのままでOK
+      - --from-fqdn
+      - example.tld            # v1と同じfqdn
+      - --dest-dsn
+      - postgres://postgres:postgres@v2db:5432/concrnt   # そのままでOK
+      - --dest-fqdn
+      - example.tld            # v1と同じfqdn
+      # 移行対象から除外したいアカウントがあれば指定
+      # - --ignore-ccids
+      # - con1xxxx...
+```
+
+| 項目 | 説明 |
+|---|---|
+| `--from-csid` | 移行元(v1)ドメインのCSID。ドメインのトップページに表示される `ccs...` の値です。 |
+| `--from-dsn` | v1データベースへの接続文字列。同一プロジェクト内なのでホスト名 `db` のままで構いません([通常手順](./compose/)と異なり `docker network connect` は不要です)。 |
+| `--from-fqdn` / `--dest-fqdn` | どちらもv1と同じfqdnを指定します。 |
+| `--dest-dsn` | v2データベース(`v2db`)への接続文字列。そのままで構いません。 |
+| `--ignore-ccids` | 移行対象から除外するアカウントのCCID。不要ならコメントアウトのままにします。 |
+
+書き換えたら、`migration` サービスを単発で実行します(`profiles: migration` により通常の `up` では起動しません)。
+
+```
+docker compose -f dualstack/compose.yaml run --rm migration
+```
+
+<Aside type="caution">
+データ量によっては時間がかかります。エラーなく完了することを確認してください。失敗した場合は原因を解消し、v2データベース(`v2/_composeData/db`)を初期化してからやり直してください。
+</Aside>
+
+## Step 5. 移行結果を確認する
+
+Webクライアント [https://concrnt.world](https://concrnt.world) から既存のアカウントでログインし、過去のタイムラインやメッセージが表示されることを確認してください。
+
+## Step 6. 純v2構成へ切り替える
+
+並行運用期間を終えたら、v1を撤去して純v2構成へ移行します。
+
+まず `v2/etc/config/config.yaml` の `net.concrnt.legacy` ブロックを**コメントアウトに戻します**(v2単独構成には `gateway` が存在しないため、残しておくとレガシーパスへのアクセスがエラーになります)。そのうえでデュアルスタックを停止し、v2単独構成を起動します。
+
+```
+docker compose -f dualstack/compose.yaml down
+docker compose -f v2/compose.yaml up -d
+```
+
+v2のデータ(`v2/_composeData`)はデュアルスタックと共有しているため、そのまま引き継がれます。
+
+<Aside>
+`v1/_composeData` はしばらく削除せず、バックアップとして保全しておくことをおすすめします。問題がないことを十分に確認してから削除してください。
+</Aside>
+
+以降はv2単独での運用となります。招待コードの発行など、日常的な運用コマンドはv2では以下のように実行します。
+
+```
+docker compose -f v2/compose.yaml run --rm concrnt2 conctl generate invite
+```
