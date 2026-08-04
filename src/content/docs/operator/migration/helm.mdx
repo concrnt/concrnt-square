@@ -179,7 +179,7 @@ v2では新しいActivityPubブリッジ([concrnt/activitypub](https://github.co
 
 v2ブリッジはconcrnt上のサービスアカウントとして動作します。**v1ブリッジで使っていたアカウント(`activitypub.privatekey` に設定していた鍵)をそのまま引き継ぐことを推奨します。**
 
-このアカウントはv1上の通常のアカウントなので、Step 2の移行で(`--ignore-ccids` で除外していなければ)既にv2へ移行されています。その場合は新たに作成する必要はなく、そのCCIDと秘密鍵を4-2でそのまま使ってください。
+このアカウントはv1上の通常のアカウントなので、Step 2の移行で(`--ignore-ccids` で除外していなければ)既にv2へ移行されています。その場合は新たに作成する必要はなく、その秘密鍵を4-2でそのまま使ってください。
 
 もしv2に存在しない場合(移行時に除外した場合など)は、`--privatekey` で鍵を指定して登録できます。
 
@@ -197,9 +197,10 @@ kubectl exec -n <namespace> deploy/concrnt2 -- conctl operation create-account -
 activitypub2:
   enabled: true
   active: false   # まだ経路はv1に向けたままにする
-  ccid: <4-1で用意したアカウントのCCID>
   privatekey: <4-1で用意したアカウントの秘密鍵>
 ```
+
+CCIDの設定は不要です(秘密鍵から自動で導出されます)。
 
 ```
 helm upgrade <リリース名> concrnt/concrnt2-migration -n <namespace> -f values.yaml
@@ -247,7 +248,7 @@ kubectl exec -n <namespace> deploy/concrnt2 -- conctl migrate ap-v1-to-v2 \
 | `--from-dsn` | v1データベースへの接続文字列。v1ブリッジはv1コアとデータベースを共有しているため、移行チャートでは `db` サービスです。 |
 | `--dest-dsn` | v2ブリッジのデータベースへの接続文字列。移行チャートでは `v2db`(v2コアと共有)です。 |
 | `--dest-fqdn` | 移行先(v2)ドメインのfqdn。 |
-| `--ap-ccid` | 4-1で用意したブリッジ用サービスアカウントのCCID。 |
+| `--ap-ccid` | 4-1で用意したブリッジ用サービスアカウントのCCID。v1のアカウントを引き継いだ場合は、v1でブリッジ用ボットとして使っていたアカウントのCCIDです。 |
 
 問題なければ `--dry-run` を外して再実行します。v1の `ap_entities`(アカウントと鍵)とフォロー・フォロワー情報がv2へ移行されます。
 
