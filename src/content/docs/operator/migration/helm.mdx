@@ -62,7 +62,7 @@ concrnt2:
 helm upgrade <リリース名> concrnt/concrnt2-migration -n <namespace> -f values.yaml
 ```
 
-これにより、既存のv1データベースのPVC(`postgres-varlib`)はそのまま維持され、v2スタック(`concrnt2` / `world-app` / `v2db` / `v2-redis` / `v2-memcached`)が追加で起動します。公開エンドポイントはv2の `concrnt2` に切り替わり、`/api/v1` や `/ap` などのレガシーパスは内部で `ccgateway`(v1)へプロキシされます。
+これにより、既存のv1データベースのPVC(`postgres-varlib`)はそのまま維持され、v2スタック(`concrnt2` / `world-app` / `v2db` / `v2-redis` / `v2-memcached`)が追加で起動します。公開エンドポイントはv2の `concrnt2` に切り替わり、`/api/v1` や `/ap` などのレガシーパスは内部で `ccgateway`(v1)へプロキシされます。v1のActivityPubブリッジ(`activitypub.enabled: true`)を運用している場合も、この時点では `/ap` や `.well-known` 系のパスは引き続きv1ブリッジが処理します(ActivityPubの移行はStep 4で行います)。
 
 Podがすべて起動したことを確認してください。
 
@@ -167,7 +167,119 @@ kubectl logs -f job/v1-v2-migration-run-1 -n <namespace>
 
 Webクライアント [https://concrnt.world](https://concrnt.world) から自分のドメインにアクセスし、既存のアカウントでログインできること、過去のタイムラインやメッセージが表示されることを確認します。
 
-## Step 4. 純v2チャート(concrnt2)へ切り替える
+## Step 4. ActivityPubブリッジを移行する(オプション)
+
+<Aside>
+v1のActivityPubブリッジ(ccworld-ap-bridge)を運用していない場合、このステップは不要です。Step 5へ進んでください。
+</Aside>
+
+v2では新しいActivityPubブリッジ([concrnt/activitypub](https://github.com/concrnt/activitypub)、イメージ `ghcr.io/concrnt/activitypub`)を使用します。移行は「並行デプロイ → データ移行 → 経路切り替え」の順で行います。データ移行が終わるまでは `/ap` や `.well-known` 系のパスはv1ブリッジが処理し続けるため、外部からの連合は途切れません。
+
+### 4-1. ブリッジ用サービスアカウントを作成する
+
+v2ブリッジはconcrnt上のサービスアカウントとして動作します。`concrnt2` Podの中で作成します。
+
+```
+kubectl exec -n <namespace> deploy/concrnt2 -- conctl operation create-account
+```
+
+出力される `ccid` と `privatekey` を控えてください(このアカウントはブリッジ専用で、v2コアにローカル登録されます)。
+
+### 4-2. v2ブリッジを並行デプロイする
+
+`values.yaml` に `activitypub2:` ブロックを追記して `helm upgrade` します。
+
+```yaml
+activitypub2:
+  enabled: true
+  active: false   # まだ経路はv1に向けたままにする
+  ccid: <4-1で作成したCCID>
+  privatekey: <4-1で作成した秘密鍵>
+```
+
+```
+helm upgrade <リリース名> concrnt/concrnt2-migration -n <namespace> -f values.yaml
+```
+
+<Aside type="caution">
+`active` はまだ `false` のままにしてください。データ移行が完了する前に経路をv2へ切り替えると、外部サーバーからの `/ap` へのアクセスに空の応答が返ってしまいます(切り替えは4-5で行います)。
+</Aside>
+
+<Aside>
+`databaseUrl` / `redisUrl` はデフォルトで `v2db` / `v2-redis`(v2コアと共有)を指します。DB構成を変更している場合はURL形式(`postgres://...`)で上書きしてください。
+</Aside>
+
+起動を確認します。初回起動時にv2ブリッジ用のテーブルが自動作成されます(これは4-4の移行コマンドの前提です)。
+
+```
+kubectl logs -n <namespace> deploy/activitypub
+```
+
+### 4-3. v2ブリッジを一時停止する
+
+<Aside type="caution">
+データ移行中にv2ブリッジが動いていると、移行中のフォローに対してFollowアクティビティをリモートサーバーへ再送してしまいます。必ず停止してから移行してください。
+</Aside>
+
+```
+kubectl scale deployment activitypub --replicas=0 -n <namespace>
+```
+
+### 4-4. データを移行する
+
+`concrnt2` Podの中で `conctl migrate ap-v1-to-v2` を実行します(認証トークンはPodにマウント済みのv2設定から自動生成されます)。まずは `--dry-run` で内容を確認します。
+
+```
+kubectl exec -n <namespace> deploy/concrnt2 -- conctl migrate ap-v1-to-v2 \
+  --from-dsn "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable" \
+  --dest-dsn "postgres://postgres:postgres@v2db:5432/concrnt" \
+  --dest-fqdn <あなたのfqdn> \
+  --ap-ccid <4-1で作成したCCID> \
+  --dry-run
+```
+
+| 項目 | 説明 |
+|---|---|
+| `--from-dsn` | v1データベースへの接続文字列。v1ブリッジはv1コアとデータベースを共有しているため、移行チャートでは `db` サービスです。 |
+| `--dest-dsn` | v2ブリッジのデータベースへの接続文字列。移行チャートでは `v2db`(v2コアと共有)です。 |
+| `--dest-fqdn` | 移行先(v2)ドメインのfqdn。 |
+| `--ap-ccid` | 4-1で作成したブリッジ用サービスアカウントのCCID。 |
+
+問題なければ `--dry-run` を外して再実行します。v1の `ap_entities`(アカウントと鍵)とフォロー・フォロワー情報がv2へ移行されます。
+
+<Aside type="caution">
+以下は移行され**ません**。
+
+- 各ユーザーのlisten対象タイムライン設定はリセットされます(ユーザーによる再設定が必要です)
+- 既存投稿とActivityPubオブジェクトの対応関係(`ap_object_references`)は引き継がれません
+- `also_known_as` の設定は引き継がれません
+- 鍵はPEMからJWKへ変換されます。変換に失敗したアカウントには新しい鍵が発行され、署名の連続性が失われます(リモートサーバーからの見え方に影響する場合があります)
+</Aside>
+
+### 4-5. ブリッジを再開し、経路を切り替える
+
+v2ブリッジを再開します。ブリッジは起動時に移行済みのフォロー情報を読み込みます。
+
+```
+kubectl scale deployment activitypub --replicas=1 -n <namespace>
+```
+
+<Aside>
+`helm upgrade` はreplicas数を復元しないため、このコマンドは省略できません。
+</Aside>
+
+ログにエラーがないことを確認したら、`values.yaml` で `activitypub2.active: true` に変更して `helm upgrade` します。これで `/ap` と `.well-known/webfinger` などの経路がv1ブリッジからv2ブリッジへ切り替わります(`concrnt2` Podは設定チェックサムの変更により自動で再起動されます)。
+
+動作を確認します。
+
+```
+curl "https://<fqdn>/.well-known/webfinger?resource=acct:<ユーザー名>@<fqdn>"
+curl "https://<fqdn>/ap/test"
+```
+
+問題なければv1ブリッジは不要です。`values.yaml` の `activitypub.enabled` を `false` にして `helm upgrade` してかまいません。
+
+## Step 5. 純v2チャート(concrnt2)へ切り替える
 
 移行が問題なく完了したら、v1スタックを撤去して純v2構成へ移行します。同じリリース名で `concrnt2` チャートへアップグレードしてください。
 
@@ -179,6 +291,10 @@ helm upgrade <リリース名> concrnt/concrnt2 -n <namespace> -f values.yaml
 
 <Aside>
 `concrnt2` チャートには `/api/v1` などのレガシーパスをv1へプロキシする設定はありません。このステップに進む前に、移行が完全に済んでいることを必ず確認してください。
+</Aside>
+
+<Aside>
+`concrnt2` チャートにもv2 ActivityPubブリッジのモジュールが含まれています。`activitypub2:` ブロックはそのまま引き継がれ、`enabled: true` であればブリッジのデプロイと `/ap` の経路設定が維持されます(`active` キーはこのチャートでは使われません)。v1用の `activitypub:` ブロックは削除してかまいません。
 </Aside>
 
 不要になったv1のデータベースPVC(`postgres-varlib`)は、バックアップを保全したうえで削除してかまいません。
