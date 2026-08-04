@@ -175,15 +175,19 @@ v1のActivityPubブリッジ(ccworld-ap-bridge)を運用していない場合、
 
 v2では新しいActivityPubブリッジ([concrnt/activitypub](https://github.com/concrnt/activitypub)、イメージ `ghcr.io/concrnt/activitypub`)を使用します。移行は「並行デプロイ → データ移行 → 経路切り替え」の順で行います。データ移行が終わるまでは `/ap` や `.well-known` 系のパスはv1ブリッジが処理し続けるため、外部からの連合は途切れません。
 
-### 4-1. ブリッジ用サービスアカウントを作成する
+### 4-1. ブリッジ用サービスアカウントを用意する
 
-v2ブリッジはconcrnt上のサービスアカウントとして動作します。`concrnt2` Podの中で作成します。
+v2ブリッジはconcrnt上のサービスアカウントとして動作します。**v1ブリッジで使っていたアカウント(`activitypub.privatekey` に設定していた鍵)をそのまま引き継ぐことを推奨します。**
+
+このアカウントはv1上の通常のアカウントなので、Step 2の移行で(`--ignore-ccids` で除外していなければ)既にv2へ移行されています。その場合は新たに作成する必要はなく、そのCCIDと秘密鍵を4-2でそのまま使ってください。
+
+もしv2に存在しない場合(移行時に除外した場合など)は、`--privatekey` で鍵を指定して登録できます。
 
 ```
-kubectl exec -n <namespace> deploy/concrnt2 -- conctl operation create-account
+kubectl exec -n <namespace> deploy/concrnt2 -- conctl operation create-account --privatekey <v1ブリッジの秘密鍵>
 ```
 
-出力される `ccid` と `privatekey` を控えてください(このアカウントはブリッジ専用で、v2コアにローカル登録されます)。
+新しいアカウントを作る場合は `--privatekey` を付けずに実行し、出力される `ccid` と `privatekey` を控えてください(いずれの場合もアカウントはv2コアにローカル登録されます)。
 
 ### 4-2. v2ブリッジを並行デプロイする
 
@@ -193,8 +197,8 @@ kubectl exec -n <namespace> deploy/concrnt2 -- conctl operation create-account
 activitypub2:
   enabled: true
   active: false   # まだ経路はv1に向けたままにする
-  ccid: <4-1で作成したCCID>
-  privatekey: <4-1で作成した秘密鍵>
+  ccid: <4-1で用意したアカウントのCCID>
+  privatekey: <4-1で用意したアカウントの秘密鍵>
 ```
 
 ```
@@ -234,7 +238,7 @@ kubectl exec -n <namespace> deploy/concrnt2 -- conctl migrate ap-v1-to-v2 \
   --from-dsn "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable" \
   --dest-dsn "postgres://postgres:postgres@v2db:5432/concrnt" \
   --dest-fqdn <あなたのfqdn> \
-  --ap-ccid <4-1で作成したCCID> \
+  --ap-ccid <4-1で用意したアカウントのCCID> \
   --dry-run
 ```
 
@@ -243,7 +247,7 @@ kubectl exec -n <namespace> deploy/concrnt2 -- conctl migrate ap-v1-to-v2 \
 | `--from-dsn` | v1データベースへの接続文字列。v1ブリッジはv1コアとデータベースを共有しているため、移行チャートでは `db` サービスです。 |
 | `--dest-dsn` | v2ブリッジのデータベースへの接続文字列。移行チャートでは `v2db`(v2コアと共有)です。 |
 | `--dest-fqdn` | 移行先(v2)ドメインのfqdn。 |
-| `--ap-ccid` | 4-1で作成したブリッジ用サービスアカウントのCCID。 |
+| `--ap-ccid` | 4-1で用意したブリッジ用サービスアカウントのCCID。 |
 
 問題なければ `--dry-run` を外して再実行します。v1の `ap_entities`(アカウントと鍵)とフォロー・フォロワー情報がv2へ移行されます。
 
