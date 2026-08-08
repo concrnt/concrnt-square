@@ -136,11 +136,135 @@ docker compose -f dualstack/compose.yaml run --rm migration
 
 Webクライアント [https://concrnt.world](https://concrnt.world) から既存のアカウントでログインし、過去のタイムラインやメッセージが表示されることを確認してください。
 
-## Step 6. 純v2構成へ切り替える
+## Step 6. ActivityPubブリッジを移行する(オプション)
+
+<Aside>
+v1のActivityPubブリッジ(ccworld-ap-bridge)を運用していない場合、このステップは不要です。Step 7へ進んでください。
+</Aside>
+
+v2では新しいActivityPubブリッジ([concrnt/activitypub](https://github.com/concrnt/activitypub)、イメージ `ghcr.io/concrnt/activitypub`)を使用します。移行は「並行デプロイ → データ移行 → 経路切り替え」の順で行います。データ移行が終わるまでは `/ap` や `.well-known` 系のパスは `net.concrnt.legacy` 経由でv1ブリッジが処理し続けるため、外部からの連合は途切れません。
+
+### 6-1. ブリッジ用サービスアカウントを用意する
+
+v2ブリッジはconcrnt上のサービスアカウントとして動作します。**v1ブリッジで使っていたアカウント(`apconfig.yaml` の `apConfig.proxyPriv` に設定していた鍵)をそのまま引き継ぐことを推奨します。**
+
+このアカウントはv1上の通常のアカウントなので、Step 4の移行で(`--ignore-ccids` で除外していなければ)既にv2へ移行されています。その場合は新たに作成する必要はなく、その秘密鍵を6-2でそのまま使ってください。
+
+もしv2に存在しない場合(移行時に除外した場合など)は、`--privatekey` で鍵を指定して登録できます。
+
+```
+docker compose -f dualstack/compose.yaml run --rm concrnt2 conctl operation create-account --privatekey <v1ブリッジの秘密鍵>
+```
+
+新しいアカウントを作る場合は `--privatekey` を付けずに実行し、出力される `ccid` と `privatekey` を控えてください(いずれの場合もアカウントはv2コアにローカル登録されます)。
+
+### 6-2. v2ブリッジを並行デプロイする
+
+`v2/etc/ap/config.yaml` を編集し、ブリッジの設定を行います。
+
+- `concrnt.domain` … v2コアと同じfqdn
+- `concrnt.privateKey` … 6-1で用意したアカウントの秘密鍵
+
+CCIDの設定は不要です(秘密鍵から自動で導出されます)。`database.url` / `redis.url` はv2コアと共有の `v2db` / `v2-redis` を指しており、DB構成を変更していなければそのままで構いません。
+
+次に `dualstack/compose.yaml` の `activitypub` サービスのコメントを外し、起動します。
+
+```
+docker compose -f dualstack/compose.yaml up -d activitypub
+```
+
+<Aside type="caution">
+`v2/etc/config/config.yaml` の `net.concrnt.activitypub` は**まだコメントのまま**にしてください。データ移行が完了する前に経路をv2へ切り替えると、外部サーバーからの `/ap` へのアクセスに空の応答が返ってしまいます(切り替えは6-5で行います)。
+</Aside>
+
+起動を確認します。初回起動時にv2ブリッジ用のテーブルが自動作成されます(これは6-4の移行コマンドの前提です)。
+
+```
+docker compose -f dualstack/compose.yaml logs activitypub
+```
+
+### 6-3. v2ブリッジを一時停止する
+
+<Aside type="caution">
+データ移行中にv2ブリッジが動いていると、移行中のフォローに対してFollowアクティビティをリモートサーバーへ再送してしまいます。必ず停止してから移行してください。
+</Aside>
+
+```
+docker compose -f dualstack/compose.yaml stop activitypub
+```
+
+### 6-4. データを移行する
+
+`migration` サービスのコンテナで `conctl migrate ap-v1-to-v2` を実行します。Step 4と異なり `compose.yaml` の書き換えは不要で、`run` の引数でコマンドを上書きします(`migration` サービスを使うのは、v1データベースへ到達でき、かつv2の設定がマウントされている——認証トークンの自動生成に必要——ためです)。まずは `--dry-run` で内容を確認します。
+
+```
+docker compose -f dualstack/compose.yaml run --rm migration conctl migrate ap-v1-to-v2 \
+  --from-dsn "host=db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable" \
+  --dest-dsn "postgres://postgres:postgres@v2db:5432/concrnt" \
+  --dest-fqdn <あなたのfqdn> \
+  --ap-ccid <6-1で用意したアカウントのCCID> \
+  --dry-run
+```
+
+| 項目 | 説明 |
+|---|---|
+| `--from-dsn` | v1データベースへの接続文字列。v1ブリッジはv1コアとデータベースを共有しているため、ホスト名は `db` のままで構いません。 |
+| `--dest-dsn` | v2ブリッジのデータベースへの接続文字列。`v2db`(v2コアと共有)のままで構いません。 |
+| `--dest-fqdn` | 移行先(v2)ドメインのfqdn。 |
+| `--ap-ccid` | 6-1で用意したブリッジ用サービスアカウントのCCID。v1のアカウントを引き継いだ場合は、v1でブリッジ用ボットとして使っていたアカウントのCCIDです。 |
+
+問題なければ `--dry-run` を外して再実行します。v1の `ap_entities`(アカウントと鍵)とフォロー・フォロワー情報がv2へ移行されます。
+
+<Aside>
+フォロー情報は内部接続ではなく、公開URL(`https://<fqdn>/api/v2/repository`)へのPOSTで移行されます。コンテナから自分のfqdnへHTTPSで到達できる必要があります(Cloudflare Tunnel利用時は通常問題ありません)。
+</Aside>
+
+<Aside type="caution">
+以下は移行され**ません**。
+
+- 各ユーザーのlisten対象タイムライン設定はリセットされます(ユーザーによる再設定が必要です)
+- 既存投稿とActivityPubオブジェクトの対応関係(`ap_object_references`)は引き継がれません
+- `also_known_as` の設定は引き継がれません
+- 鍵はPEMからJWKへ変換されます。変換に失敗したアカウントには新しい鍵が発行され、署名の連続性が失われます(リモートサーバーからの見え方に影響する場合があります)
+</Aside>
+
+### 6-5. ブリッジを再開し、経路を切り替える
+
+v2ブリッジを再開します。ブリッジは起動時に移行済みのフォロー情報を読み込みます。
+
+```
+docker compose -f dualstack/compose.yaml up -d activitypub
+```
+
+ログにエラーがないことを確認したら、`v2/etc/config/config.yaml` を編集して経路をv1ブリッジからv2ブリッジへ切り替えます。
+
+1. `net.concrnt.activitypub` ブロックの**コメントを外します**
+2. `net.concrnt.legacy` ブロックの `paths` から `/ap`・`.well-known/webfinger`・`.well-known/nodeinfo`・`.well-known/host-meta` の4つを**削除します**(残しておくとv1側へのプロキシが優先されます)
+
+編集したら `concrnt2` を再起動して設定を反映します。
+
+```
+docker compose -f dualstack/compose.yaml restart concrnt2
+```
+
+動作を確認します。
+
+```
+curl "https://<fqdn>/.well-known/webfinger?resource=acct:<ユーザー名>@<fqdn>"
+curl "https://<fqdn>/ap/test"
+```
+
+問題なければv1ブリッジは不要です。停止したうえで、`dualstack/compose.yaml` の `apbridge` をコメントアウトに戻してかまいません。
+
+```
+docker compose -f dualstack/compose.yaml stop apbridge
+```
+
+## Step 7. 純v2構成へ切り替える
 
 並行運用期間を終えたら、v1を撤去して純v2構成へ移行します。
 
-まず `v2/etc/config/config.yaml` の `net.concrnt.legacy` ブロックを**コメントアウトに戻します**(v2単独構成には `gateway` が存在しないため、残しておくとレガシーパスへのアクセスがエラーになります)。そのうえでデュアルスタックを停止し、v2単独構成を起動します。
+まず `v2/etc/config/config.yaml` の `net.concrnt.legacy` ブロックを**コメントアウトに戻します**(v2単独構成には `gateway` が存在しないため、残しておくとレガシーパスへのアクセスがエラーになります)。Step 6でActivityPubブリッジを移行した場合、`net.concrnt.activitypub` は**残したまま**にし、`v2/compose.yaml` 側でも `activitypub` サービスのコメントを外しておきます(ブリッジの設定 `v2/etc/ap/config.yaml` はそのまま引き継がれます)。そのうえでデュアルスタックを停止し、v2単独構成を起動します。
 
 ```
 docker compose -f dualstack/compose.yaml down

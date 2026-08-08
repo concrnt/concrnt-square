@@ -111,6 +111,24 @@ Cloudflare Tunnelを利用する場合、コメントを外してトークンを
 固定IPアドレスやポート解放を行えない環境でドメインを起動する場合、この項目の設定は必須です。 「Cloudflare Tunnelを利用する」ページに移動し、各種設定を済ませてください。
 </Aside>
 
+`services.activitypub`
+
+Fediverse(Misskey / Mastodon など)との連合を行うActivityPubブリッジを有効化します。有効化には以下の3つの設定が必要です。
+
+1. ブリッジ用のサービスアカウントを作成します。下記コマンドを実行し、出力される `ccid` と `privatekey` を控えてください。
+
+```
+docker compose run --rm concrnt2 conctl operation create-account
+```
+
+2. `etc/ap/config.yaml` を編集し、`concrnt.domain` に自ドメインのfqdn、`concrnt.privateKey` に1で作成したアカウントの秘密鍵を設定します。
+
+3. `compose.yaml` の `activitypub` サービスと、`etc/config/config.yaml` の `services:` にある `net.concrnt.activitypub` の項目のコメントを外します。
+
+<Aside>
+v1のActivityPubブリッジ(ccworld-ap-bridge)から移行する場合は、新規にアカウントを作成せず[移行ガイドのActivityPubブリッジ移行手順](/operator/migration/compose/)を参照してください。フォロー関係や鍵を引き継げます。
+</Aside>
+
 `services.mediaserver2`
 
 デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。有効化する場合は `etc/config/config.yaml` の `services:` にある `world.concrnt.mediaserver` の項目もコメントから外してください。

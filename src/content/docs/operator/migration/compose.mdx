@@ -51,6 +51,10 @@ docker compose -f v1/compose.yaml stop gateway api webui hyperproxy
 docker compose -f v1/compose.yaml up -d db
 ```
 
+<Aside>
+v1でActivityPubブリッジ(`apbridge`)を有効にしていた場合は、あわせて停止してください(`docker compose -f v1/compose.yaml stop apbridge`)。この手順ではv1を止めた時点でFediverseとの連合が一時停止します。ブリッジのデータ移行はStep 7で行います。連合を止めずに移行したい場合は[並行運用移行](./compose-dualstack/)を利用してください。
+</Aside>
+
 ## Step 3. v2スタックを起動する
 
 ```
@@ -115,7 +119,106 @@ docker compose -f v2/compose.yaml run --rm migration
 
 Cloudflare Tunnel やリバースプロキシを利用している場合、転送先がv2の公開ポート(`concrnt2` の `8080`)を向くように設定します。v1と同じホストの `8080` を引き続き利用しているため、多くの場合は追加の変更は不要です。
 
-## Step 7. v1を撤去する
+## Step 7. ActivityPubブリッジを移行する(オプション)
+
+<Aside>
+v1のActivityPubブリッジ(ccworld-ap-bridge)を運用していない場合、このステップは不要です。Step 8へ進んでください。
+</Aside>
+
+v2では新しいActivityPubブリッジ([concrnt/activitypub](https://github.com/concrnt/activitypub)、イメージ `ghcr.io/concrnt/activitypub`)を使用します。移行にはv1のデータベースを参照するため、**Step 8でv1を撤去する前に**実行してください(Step 4で接続した別名 `v1db` をそのまま利用します)。
+
+### 7-1. ブリッジ用サービスアカウントを用意する
+
+v2ブリッジはconcrnt上のサービスアカウントとして動作します。**v1ブリッジで使っていたアカウント(`apconfig.yaml` の `apConfig.proxyPriv` に設定していた鍵)をそのまま引き継ぐことを推奨します。**
+
+このアカウントはv1上の通常のアカウントなので、Step 5の移行で(`--ignore-ccids` で除外していなければ)既にv2へ移行されています。その場合は新たに作成する必要はなく、その秘密鍵を7-2でそのまま使ってください。
+
+もしv2に存在しない場合(移行時に除外した場合など)は、`--privatekey` で鍵を指定して登録できます。
+
+```
+docker compose -f v2/compose.yaml run --rm concrnt2 conctl operation create-account --privatekey <v1ブリッジの秘密鍵>
+```
+
+新しいアカウントを作る場合は `--privatekey` を付けずに実行し、出力される `ccid` と `privatekey` を控えてください(いずれの場合もアカウントはv2コアにローカル登録されます)。
+
+### 7-2. v2ブリッジを起動して初期化する
+
+`v2/etc/ap/config.yaml` を編集し、ブリッジの設定を行います。
+
+- `concrnt.domain` … v2コアと同じfqdn
+- `concrnt.privateKey` … 7-1で用意したアカウントの秘密鍵
+
+CCIDの設定は不要です(秘密鍵から自動で導出されます)。`database.url` / `redis.url` はv2コアと共有の `v2db` / `v2-redis` を指しており、DB構成を変更していなければそのままで構いません。
+
+次に `v2/compose.yaml` の `activitypub` サービスのコメントを外して起動し、ログでエラーがないことを確認します。初回起動時にv2ブリッジ用のテーブルが自動作成されます(これは7-3の移行コマンドの前提です)。
+
+```
+docker compose -f v2/compose.yaml up -d activitypub
+docker compose -f v2/compose.yaml logs activitypub
+```
+
+確認できたら、いったん停止します。
+
+```
+docker compose -f v2/compose.yaml stop activitypub
+```
+
+<Aside type="caution">
+データ移行中にv2ブリッジが動いていると、移行中のフォローに対してFollowアクティビティをリモートサーバーへ再送してしまいます。必ず停止してから移行してください。
+</Aside>
+
+### 7-3. データを移行する
+
+`migration` サービスのコンテナで `conctl migrate ap-v1-to-v2` を実行します。Step 5と異なり `compose.yaml` の書き換えは不要で、`run` の引数でコマンドを上書きします。まずは `--dry-run` で内容を確認します。
+
+```
+docker compose -f v2/compose.yaml run --rm migration conctl migrate ap-v1-to-v2 \
+  --from-dsn "host=v1db user=postgres password=postgres dbname=concrnt port=5432 sslmode=disable" \
+  --dest-dsn "postgres://postgres:postgres@v2db:5432/concrnt" \
+  --dest-fqdn <あなたのfqdn> \
+  --ap-ccid <7-1で用意したアカウントのCCID> \
+  --dry-run
+```
+
+| 項目 | 説明 |
+|---|---|
+| `--from-dsn` | v1データベースへの接続文字列。v1ブリッジはv1コアとデータベースを共有しているため、Step 4で付けた別名 `v1db` を使います。 |
+| `--dest-dsn` | v2ブリッジのデータベースへの接続文字列。`v2db`(v2コアと共有)のままで構いません。 |
+| `--dest-fqdn` | 移行先(v2)ドメインのfqdn。 |
+| `--ap-ccid` | 7-1で用意したブリッジ用サービスアカウントのCCID。v1のアカウントを引き継いだ場合は、v1でブリッジ用ボットとして使っていたアカウントのCCIDです。 |
+
+問題なければ `--dry-run` を外して再実行します。v1の `ap_entities`(アカウントと鍵)とフォロー・フォロワー情報がv2へ移行されます。
+
+<Aside>
+フォロー情報は内部接続ではなく、公開URL(`https://<fqdn>/api/v2/repository`)へのPOSTで移行されます。コンテナから自分のfqdnへHTTPSで到達できる必要があります(Cloudflare Tunnel利用時は通常問題ありません)。
+</Aside>
+
+<Aside type="caution">
+以下は移行され**ません**。
+
+- 各ユーザーのlisten対象タイムライン設定はリセットされます(ユーザーによる再設定が必要です)
+- 既存投稿とActivityPubオブジェクトの対応関係(`ap_object_references`)は引き継がれません
+- `also_known_as` の設定は引き継がれません
+- 鍵はPEMからJWKへ変換されます。変換に失敗したアカウントには新しい鍵が発行され、署名の連続性が失われます(リモートサーバーからの見え方に影響する場合があります)
+</Aside>
+
+### 7-4. ブリッジを再開し、経路を有効にする
+
+`v2/etc/config/config.yaml` の `services:` にある `net.concrnt.activitypub` ブロックの**コメントを外し**、`concrnt2` を再起動して `/ap` と `.well-known` 系の経路を有効にします。あわせてv2ブリッジを再開します(起動時に移行済みのフォロー情報を読み込みます)。
+
+```
+docker compose -f v2/compose.yaml restart concrnt2
+docker compose -f v2/compose.yaml up -d activitypub
+```
+
+動作を確認します。
+
+```
+curl "https://<fqdn>/.well-known/webfinger?resource=acct:<ユーザー名>@<fqdn>"
+curl "https://<fqdn>/ap/test"
+```
+
+## Step 8. v1を撤去する
 
 移行と動作確認が完了したら、v1スタックを停止・削除します。
 
