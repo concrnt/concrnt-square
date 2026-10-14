@@ -1,0 +1,74 @@
+---
+title: "クローラーの索引を拒否する(robots.txt)"
+description: robots.txtでConcrntの検索クローラー(concrnt-crawler)にドメインの索引を拒否させる
+sidebar:
+    order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Concrntのネットワークには、各ドメインの公開情報(プロフィール・コミュニティ・公開投稿)を集めて横断検索を提供するクローラー([concrnt-crawler](https://github.com/concrnt/crawler))が存在します。クローラーは `robots.txt`([RFC 9309](https://www.rfc-editor.org/rfc/rfc9309))を解釈するため、索引されたくないドメインは `robots.txt` を置くだけでクロールを拒否できます。
+
+## クローラーの振る舞い
+
+- クローラーは `https://<あなたのドメイン>/robots.txt` を、ドメインを読みに行くたびに取得します。
+- product token(User-agent)は `concrnt-crawler` です。`User-agent: concrnt-crawler` のグループがあればそれを、無ければ `User-agent: *` のグループを使います。
+- 判定対象は replication エンドポイント(通常 `/api/v2/replication`)です。`Disallow: /` でも `Disallow: /api/v2/replication` でも拒否になります。
+- `robots.txt` が 404 の場合は制限なしとして扱います。5xx や接続失敗の場合は「未定義」として、その回のクロールを見送ります。
+- 拒否にすると以後の取得は止まりますが、拒否前に索引済みのデータは自動では消えません。
+
+## robots.txt を置く
+
+Concrnt本体が `/robots.txt` を配信します。本文は `/etc/concrnt/static/robots.txt` から読まれ、ファイルが無ければ 404 を返します。クロールを全面的に拒否する場合の内容は以下です。
+
+```
+User-agent: concrnt-crawler
+Disallow: /
+```
+
+### Docker Compose
+
+`concrnt-compose/v2/etc/static/robots.txt` を作成してください。`etc/` はコンテナの `/etc/concrnt/` にマウントされているので、ファイルを置いて `concrnt2` を再起動すれば反映されます。
+
+```
+docker compose restart concrnt2
+```
+
+### Kubernetes (Helm)
+
+`values.yaml` の `legal.robotsTxt` に本文を記述すると、`concrnt-static` ConfigMap 経由で `/etc/concrnt/static/robots.txt` に配置されます(チャート 0.2.14 以降)。
+
+```yaml
+legal:
+  robotsTxt: |
+    User-agent: concrnt-crawler
+    Disallow: /
+```
+
+```
+helm upgrade concrnt concrnt/concrnt2 -n concrnt -f values.yaml
+```
+
+### 確認
+
+```
+curl https://<あなたのドメイン>/robots.txt
+```
+
+設定した本文がそのまま返れば完了です。
+
+<Aside>
+`/robots.txt` はConcrnt本体が答えるため、`/` にプロキシしているWebフロントエンド(world-app)側の `robots.txt` は参照されなくなります。他の検索エンジン向けの記述が必要な場合も、このファイルにまとめて書いてください。
+</Aside>
+
+## 静的ファイルのパスを変える
+
+`robots.txt` を含む静的ファイルの置き場所は、Concrntの `config.yaml` の `static` で変更できます。未指定の項目は `/etc/concrnt/static/` 配下の既定ファイルが使われ、指定したパスにファイルが無ければその経路は 404 になります。
+
+```yaml
+static:
+  tos: /etc/concrnt/static/tos.txt                             # /tos
+  codeOfConduct: /etc/concrnt/static/code-of-conduct.txt       # /code-of-conduct
+  registerTemplate: /etc/concrnt/static/register-template.json # /register-template
+  robotsTxt: /etc/concrnt/static/robots.txt                    # /robots.txt
+```
