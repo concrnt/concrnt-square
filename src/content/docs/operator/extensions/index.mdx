@@ -1,0 +1,40 @@
+---
+title: "はじめに"
+description: 構築済みのConcrnt(v2)ドメインに、ブリッジなどの拡張機能(サービスモジュール)を追加する
+sidebar:
+    order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Concrnt(v2)の本体は、SNSとして最低限必要な機能だけを持つ小さなサーバーです。Fediverseとの連合やBlueskyとの相互接続といった機能は、本体とは別のプロセスとして動く**サービスモジュール**として提供されており、必要なものだけを後から追加できます。
+
+このセクションでは、[Docker Compose](/getting-started/hosting/compose/)または[Kubernetes (Helm)](/getting-started/hosting/kubernetes/)で構築済みのドメインに、各サービスモジュールを追加する手順を解説します。
+
+<Aside>
+いずれの手順も、先にドメインを起動してトップページにCSIDが表示される状態にしてから進めてください。初めての構築では、まず最小構成での動作を確認してから拡張することをおすすめします。
+</Aside>
+
+## 導入できる拡張機能
+
+| 拡張機能 | 役割 | ガイド |
+|---|---|---|
+| ActivityPubブリッジ | Mastodon / Misskey などFediverseとの連合 | [ActivityPubブリッジを導入する](./activitypub/) |
+| Blueskyブリッジ(atproto) | Bluesky(AT Protocol)との相互接続 | [Blueskyブリッジ(atproto)を導入する](./atproto/) |
+| メディアサーバー(cc-media-server) | 画像などのメディアを自ドメインで管理する | Docker Composeの `services.mediaserver2` を参照 |
+
+## サービスモジュールの共通の仕組み
+
+どのモジュールも、次の3つの要素で本体と繋がります。各ガイドの手順はこの枠組みに沿っています。
+
+1. **サービスアカウント** — モジュールがConcrntに書き込むためのアカウントです。`conctl operation create-account` で作成し、その秘密鍵をモジュールの設定に渡します。モジュールごとに別のアカウントを用意してください。
+2. **ゲートウェイへの登録** — 本体の `config.yaml` の `services:` にモジュールを登録すると、本体のゲートウェイが該当パスをモジュールへ転送します。モジュールのポートを直接インターネットへ公開する必要はなく、公開してはいけないモジュールもあります。Helmチャートではモジュールを有効化すると自動で登録されます。
+3. **本体と共有するデータベースとRedis** — PostgreSQLは本体と共有でき(テーブルはモジュールごとのプレフィックスで分離されます)、Redisは本体のイベントを購読するため**必ず本体と同じインスタンス**を指定します。
+
+<Aside type="caution">
+本体は `config.yaml` を起動時にしか読みません。Docker Composeで `services:` を変更した場合は `docker compose restart concrnt2` で本体を再起動してください。Helmでは設定の変更に応じて自動で再起動されます。
+</Aside>
+
+## v1からの移行
+
+すでにv1系で `ccworld-ap-bridge` を運用している場合、新しいActivityPubブリッジにはフォロー関係や鍵を引き継ぐ移行手順があります。新規に導入するのではなく、[v1からv2への移行](/operator/migration/)の各ガイド内にあるActivityPubブリッジ移行ステップに従ってください。

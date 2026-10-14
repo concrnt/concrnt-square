@@ -1,0 +1,254 @@
+---
+title: "ActivityPubブリッジを導入する"
+description: Concrnt(v2)ドメインにActivityPubブリッジを追加し、Mastodon / Misskey などFediverseと連合する
+sidebar:
+    order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+このページでは、構築済みのConcrnt(v2)ドメインに [ActivityPubブリッジ](https://github.com/concrnt/activitypub) を追加し、Mastodon / Misskey などのActivityPub対応サーバー(Fediverse)と連合する方法を解説します。Docker ComposeとKubernetes(Helm)の両方の手順を掲載しています。
+
+<Aside>
+v1のActivityPubブリッジ(ccworld-ap-bridge)から移行する場合は、このページの手順で新規に導入せず、[v1からv2への移行](/operator/migration/)の各ガイド内にあるActivityPubブリッジ移行ステップを参照してください。フォロー関係や鍵を引き継げます。
+</Aside>
+
+## 仕組みと特徴
+
+- **Concrnt → Fediverse**: ブリッジを有効化したアカウントは `@<ID>@<fqdn>` というActivityPubアクターとしてFediverseから見えるようになります。投稿は `Create{Note}`、リルートは `Announce`、いいね・リアクションは `Like` / `EmojiReact` として、フォロワーのいるサーバーへ配送されます。
+- **Fediverse → Concrnt**: フォローしたリモートユーザーの投稿や、自分宛てのリプライ・メンション・いいねをConcrnt側へ取り込みます。リモート投稿の本文は複製せず、投稿への参照(`ap/note`)だけをユーザー専用の受信タイムラインに配送し、表示時にクライアントが解決します。
+- **専用ドメインは不要です。** `/ap` と `/.well-known/webfinger` などのパスを本体のゲートウェイがブリッジへ転送するため、ConcrntドメインのFQDNがそのままActivityPubのホストになります。
+- **ブリッジはサービスアカウントとして動作します。** Concrntへの書き込みはすべてこのアカウント名義で行われ、受信したリルート等は `profileOverride` でリモートユーザーの名前・アイコンが表示されます。
+
+## 0. 前提条件
+
+- Concrnt本体がv2系であること。このドキュメントの手順で構築した環境は満たしています。
+- ブリッジからインターネットへ外向きに接続できること(連合先サーバーへの配送と、リモートのアクター・投稿の取得に使います)。
+- PostgreSQL(本体と共有可)と、**本体と同一の**Redis。
+
+## 1. ブリッジ用サービスアカウントの作成
+
+ブリッジがConcrntに書き込むためのサービスアカウントを作成します。
+
+Docker Composeの場合(`v2/` ディレクトリで実行):
+
+```
+docker compose run --rm concrnt2 conctl operation create-account
+```
+
+Kubernetesの場合:
+
+```
+kubectl exec -n concrnt deploy/concrnt2 -- conctl operation create-account
+```
+
+出力される `privatekey` を控えてください。ActivityPubブリッジは秘密鍵からccidを導出するため、設定に必要なのは秘密鍵だけです。
+
+```
+domain:		 example.tld
+ccid:		 con1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+mnemonic:	 ...
+privatekey:	 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+publickey:	 ...
+```
+
+<Aside>
+Blueskyブリッジ(atproto)も使う場合でも、ActivityPubブリッジ用には別のサービスアカウントを作成してください。
+</Aside>
+
+## 2-A. Docker Composeの場合
+
+`concrnt-compose` のv2構成には、コメントアウトされた状態でブリッジのサービスと設定が同梱されています。以下の3か所を編集します。
+
+### ブリッジの設定ファイルを編集
+
+`v2/etc/ap/config.yaml` を開き、`concrnt.domain` と `concrnt.privateKey` を書き換えます。
+
+```yaml
+server:
+  port: 8008
+
+# データベースとRedisはv2コア(concrnt2)と共有します。
+# いずれもURL形式で指定してください(host=... 形式のDSNは使えません)。
+database:
+  url: postgres://postgres:postgres@v2db:5432/concrnt
+redis:
+  url: redis://v2-redis:6379
+
+concrnt:
+  # コア(etc/config/config.yaml の concrnt.fqdn)と同じ値。スキームやパスは付けない
+  domain: example.tld
+  # 手順1で作成したサービスアカウントの秘密鍵。ccidは秘密鍵から導出されるため設定不要
+  privateKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+<Aside type="caution">
+このファイルを `etc/config/` の中に置かないでください。`etc/config/` はConcrnt本体がディレクトリごと設定として読み込むため、本体の設定に混ざってしまいます。
+</Aside>
+
+### compose.yamlのサービスを有効化
+
+`v2/compose.yaml` の `activitypub` サービスのコメントを外します。連合先への外向き配送のため、`external` ネットワークにも参加している必要があります。
+
+```yaml
+  activitypub:
+    image: ghcr.io/concrnt/activitypub:main
+    restart: always
+    depends_on:
+      v2db:
+        condition: service_healthy
+      v2-redis:
+        condition: service_healthy
+    expose:
+      - 8008
+    volumes:
+      - ./etc/ap/config.yaml:/app/config.yaml:ro
+    networks:
+      - external   # 連合先への外向き配送に必要
+      - internal
+```
+
+### 本体のconfig.yamlにルーティングを追加
+
+`v2/etc/config/config.yaml` の `services:` にある `net.concrnt.activitypub` のコメントを外します。
+
+```yaml
+services:
+  # ... 既存のエントリ ...
+  - name: net.concrnt.activitypub
+    host: activitypub
+    port: 8008
+    paths:
+      - /ap
+      - /.well-known/webfinger
+      - /.well-known/nodeinfo
+      - /.well-known/host-meta
+    preservePath: true
+```
+
+<Aside type="caution">
+`path` ではなく `paths` で登録してください。本体は `path` を指定するとブリッジが広告するエンドポイントの前にそれを付け足すため、`path: /ap` と書くとクライアント向けAPIが `/ap/ap/api/...` に壊れます。
+</Aside>
+
+### 起動
+
+```
+docker compose up -d
+docker compose restart concrnt2
+```
+
+本体は `config.yaml` を起動時にしか読まないため、ルーティングを反映するには `concrnt2` の再起動が必要です。`docker compose logs -f activitypub` でエラーが出ていないことを確認してください。DBのマイグレーションは起動時に自動で実行されます。
+
+## 2-B. Kubernetes(Helm)の場合
+
+`concrnt2` チャートには `activitypub2:` ブロックが用意されています。有効化すると、ブリッジのDeployment・Service・ConfigMapが作成され、本体の `services:` にも上記の `net.concrnt.activitypub` エントリが自動で登録されます。
+
+### Secretの作成
+
+本番環境では秘匿値をSecretに分離する `useSecret: true` を推奨します。`activitypub2-secret` という名前のSecretに、`secret.yaml` キーで秘匿値だけを部分YAMLとして書きます(ConfigMapの `config.yaml` の後に読まれ、深いマージで上書きされます)。
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: activitypub2-secret
+  namespace: concrnt
+stringData:
+  secret.yaml: |
+    concrnt:
+      privateKey: <手順1のサービスアカウントの秘密鍵>
+```
+
+```
+kubectl apply -f activitypub2-secret.yaml
+```
+
+<Aside>
+`useSecret: true` のときはConfigMap側に `privateKey` を出力しません。Secretに必ず含めてください(欠落すると起動時エラーになります)。
+</Aside>
+
+### values.yamlへの追記
+
+ドメイン構築時([Step2 Helmチャートのデプロイ](/getting-started/hosting/kubernetes/step2/))に作成した `values.yaml` に以下を追記します。
+
+```yaml
+activitypub2:
+  enabled: true
+  useSecret: true
+```
+
+DBとRedisは既定で本体と同じ `v2db` / `v2-redis` を指します。本体側のDB設定を変更している場合は `activitypub2.databaseUrl` / `activitypub2.redisUrl` も合わせてください(URL形式のみ。`host=...` 形式のDSNは使えません)。その他の項目はチャートの[values.yaml](https://github.com/concrnt/helmcharts/blob/main/charts/concrnt2/values.yaml)を参照してください。
+
+<Aside>
+`useSecret: false` にすると `activitypub2.privatekey` を `values.yaml` に直接書けますが、`values.yaml` をGit管理している場合は推奨しません。
+</Aside>
+
+### デプロイ
+
+```
+helm upgrade concrnt concrnt/concrnt2 -n concrnt -f values.yaml
+kubectl get pods -n concrnt
+```
+
+`activitypub` Podが `Running` になり、`concrnt2` Podが新しい設定で再起動されていることを確認してください。`observability.createPodMonitors` を有効にしている場合は、ブリッジの `/metrics` を収集するPodMonitorも作成されます。
+
+## 3. 動作確認
+
+ブラウザまたは `curl` で、ゲートウェイ経由でブリッジに到達できることを確認します。
+
+```
+curl https://<fqdn>/ap
+```
+
+`Hello, Fedify!` と返れば転送は正常です。あわせてnodeinfoが返ることも確認しておきましょう。
+
+```
+curl https://<fqdn>/.well-known/nodeinfo
+```
+
+## 4. ユーザー側での有効化
+
+ブリッジが動作していれば、ドメイン内の各ユーザーはクライアントから自分でActivityPub連携を有効化できます。ユーザーには以下のように案内してください。
+
+1. [concrnt.world](https://concrnt.world) の **設定 > 外部連携 > ActivityPub設定** を開きます。
+2. 「希望のID」にFediverse上で使う名前を入力し、「有効化」を押します。これで `@<ID>@<fqdn>` としてMastodonやMisskeyから検索・フォローできるようになります。IDは後から変更できません。
+3. ブリッジ用の受信タイムライン(ActivityPubタイムライン)が自分のどのリストにも入っていない場合は警告が表示されるので、「リストに追加」からリストに加えます。フォローしたリモートユーザーの投稿はこのタイムラインに届きます。
+4. 必要に応じて「転送元タイムライン」を設定します。未設定の場合はホームタイムラインへの投稿がFediverseへ転送されます。
+
+有効化後、外部から次のように見えることを確認できます。
+
+```
+curl "https://<fqdn>/.well-known/webfinger?resource=acct:<ID>@<fqdn>"
+```
+
+<Aside>
+リモートユーザーをフォローするには、Fediverse上の `@user@example.social` 形式のIDやプロフィールURLを「照会」に入力します。リプライ・メンション・いいねは通知欄に届きます。
+</Aside>
+
+## 運用上の注意
+
+- **ドメイン内のデータ量**: フォローしたリモートユーザーの投稿への参照がドメイン内に蓄積されます(本文はコピーせず、Redisに一定期間キャッシュされます)。
+- **サービスアカウントの秘密鍵**: 紛失するとブリッジがConcrntへ書き込めなくなります。DBのバックアップと一緒に保護してください。
+- **`/ap` のマウント位置は固定です**: Fediverse向けのURLに含まれるため、他のパスへ移すことはできません。
+- **イメージの更新**: `:latest` や `:main` のような動くタグを使っている場合、Kubernetesでは `imagePullPolicy` の既定(`IfNotPresent`)により再起動だけではイメージが更新されません。タグ付きリリースを利用するか、`Always` を設定してください。
+
+## トラブルシューティング
+
+### 設定画面を開いても「読み込み中...」のまま、または有効化に失敗する
+
+ゲートウェイからブリッジへの転送が設定されていないか、ブリッジが起動していません。
+
+- Composeの場合、`etc/config/config.yaml` の `services:` に `net.concrnt.activitypub` が入っていて、`concrnt2` を再起動しましたか？
+- `paths` ではなく `path` で登録していませんか？
+- `docker compose logs activitypub` / `kubectl logs -n concrnt deploy/activitypub` に設定エラーが出ていませんか？
+
+### Mastodon / Misskeyから検索してもユーザーが見つからない
+
+- `curl "https://<fqdn>/.well-known/webfinger?resource=acct:<ID>@<fqdn>"` がJSONを返しますか？404の場合は `services:` の `paths` に `/.well-known/webfinger` が含まれているか確認してください。
+- `concrnt.domain` が本体の `concrnt.fqdn` と完全に一致していますか?(スキームや末尾のスラッシュは付けません)
+
+### フォローはできるが投稿が届かない・相手に届かない
+
+- ブリッジのコンテナがインターネットへ外向きに接続できますか？Composeでは `external` ネットワークに参加している必要があります。
+- Redisが本体と同じインスタンスを指していますか？別のRedisを指していると本体の投稿イベントを受け取れません。
+- 投稿先が「転送元タイムライン」(未設定ならホームタイムライン)になっていますか？

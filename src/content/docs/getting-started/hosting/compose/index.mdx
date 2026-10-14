@@ -93,7 +93,7 @@ v1では `concrnt.dimension` というキーでしたが、v2では `concrnt.lay
 
 #### **concrnt-compose/v2/etc/static/\***
 
-アカウント新規作成時に表示される各種注意事項や規約、管理者が収集したいデータについて定義するファイルが含まれます。検索クローラーに索引されたくない場合は、ここに `robots.txt` を置きます([クローラーの索引を拒否する](/getting-started/hosting/robots/)を参照)。
+アカウント新規作成時に表示される各種注意事項や規約、管理者が収集したいデータについて定義するファイルが含まれます。検索クローラーに索引されたくない場合は、ここに `robots.txt` を置きます([クローラーの索引を拒否する](/operator/robots/)を参照)。
 
 #### **concrnt-compose/v2/compose.yaml**
 
@@ -113,17 +113,7 @@ Cloudflare Tunnelを利用する場合、コメントを外してトークンを
 
 `services.activitypub`
 
-Fediverse(Misskey / Mastodon など)との連合を行うActivityPubブリッジを有効化します。有効化には以下の3つの設定が必要です。
-
-1. ブリッジ用のサービスアカウントを作成します。下記コマンドを実行し、出力される `ccid` と `privatekey` を控えてください。
-
-```
-docker compose run --rm concrnt2 conctl operation create-account
-```
-
-2. `etc/ap/config.yaml` を編集し、`concrnt.domain` に自ドメインのfqdn、`concrnt.privateKey` に1で作成したアカウントの秘密鍵を設定します。
-
-3. `compose.yaml` の `activitypub` サービスと、`etc/config/config.yaml` の `services:` にある `net.concrnt.activitypub` の項目のコメントを外します。
+Fediverse(Misskey / Mastodon など)との連合を行うActivityPubブリッジを有効化します。ブリッジ用サービスアカウントの作成・`etc/ap/config.yaml` の編集・本体 `config.yaml` の `services:` への登録が必要です。手順は[ActivityPubブリッジを導入する](/operator/extensions/activitypub/)を参照してください。
 
 <Aside>
 v1のActivityPubブリッジ(ccworld-ap-bridge)から移行する場合は、新規にアカウントを作成せず[移行ガイドのActivityPubブリッジ移行手順](/operator/migration/compose/)を参照してください。フォロー関係や鍵を引き継げます。
@@ -131,7 +121,7 @@ v1のActivityPubブリッジ(ccworld-ap-bridge)から移行する場合は、新
 
 `services.atproto`
 
-Bluesky(AT Protocol)と相互接続するatprotoブリッジです。`compose.yaml` には含まれていないため、サービスの追加・ブリッジ用設定ファイルの作成・鍵の生成を別途行います。手順は[Blueskyブリッジ(atproto)を導入する](/getting-started/hosting/atproto/)を参照してください。
+Bluesky(AT Protocol)と相互接続するatprotoブリッジです。`compose.yaml` には含まれていないため、サービスの追加・ブリッジ用設定ファイルの作成・鍵の生成を別途行います。手順は[Blueskyブリッジ(atproto)を導入する](/operator/extensions/atproto/)を参照してください。
 
 `services.mediaserver2`
 

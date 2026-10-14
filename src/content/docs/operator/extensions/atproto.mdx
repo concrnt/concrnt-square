@@ -2,7 +2,7 @@
 title: "Blueskyブリッジ(atproto)を導入する"
 description: Concrnt(v2)ドメインにatprotoブリッジを追加し、Bluesky(AT Protocol)と相互接続する
 sidebar:
-    order: 9
+    order: 3
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -10,7 +10,7 @@ import { Aside } from '@astrojs/starlight/components';
 このページでは、構築済みのConcrnt(v2)ドメインに [atprotoブリッジ](https://github.com/concrnt/atproto) を追加し、Bluesky(AT Protocol)のネットワークと相互接続する方法を解説します。Docker ComposeとKubernetes(Helm)の両方の手順を掲載しています。
 
 <Aside>
-atprotoブリッジはActivityPubブリッジと同じ位置づけの「サービスモジュール」です。先に[Docker Compose](/getting-started/hosting/compose/)または[Kubernetes](/getting-started/hosting/kubernetes/)でドメインを起動し、トップページにCSIDが表示される状態にしてから進めてください。
+atprotoブリッジは[ActivityPubブリッジ](./activitypub/)と同じ位置づけの「サービスモジュール」です([拡張機能の導入](./)を参照)。先に[Docker Compose](/getting-started/hosting/compose/)または[Kubernetes](/getting-started/hosting/kubernetes/)でドメインを起動し、トップページにCSIDが表示される状態にしてから進めてください。
 </Aside>
 
 ## 仕組みと特徴
@@ -216,7 +216,7 @@ kubectl apply -f atproto-secret.yaml
 
 ### values.yamlへの追記
 
-Step2で作成した `values.yaml` に以下を追記します。
+ドメイン構築時([Step2 Helmチャートのデプロイ](/getting-started/hosting/kubernetes/step2/))に作成した `values.yaml` に以下を追記します。
 
 ```yaml
 atproto:

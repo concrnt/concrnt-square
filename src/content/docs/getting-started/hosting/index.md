@@ -15,5 +15,5 @@ Concrntは環境に合わせてミニマムであれば1GBのメモリでも動�
 
 すでにv1系のドメインを運用している場合は、[v1からv2への移行](/operator/migration/)を参照してください。
 
-ドメインを起動した後、Bluesky(AT Protocol)と相互接続したい場合は[Blueskyブリッジ(atproto)を導入する](/getting-started/hosting/atproto/)に進んでください。検索クローラーに索引されたくない場合は[クローラーの索引を拒否する(robots.txt)](/getting-started/hosting/robots/)を参照してください。
+ドメインを起動した後にActivityPubブリッジやBlueskyブリッジなどを追加する手順は、オペレーター向けの[拡張機能の導入](/operator/extensions/)にまとめています。検索クローラーに索引されたくない場合は[クローラーの索引を拒否する(robots.txt)](/operator/robots/)を参照してください。
 

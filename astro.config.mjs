@@ -4,6 +4,10 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	redirects: {
+		'/getting-started/hosting/atproto/': '/operator/extensions/atproto/',
+		'/getting-started/hosting/robots/': '/operator/robots/',
+	},
 	integrations: [
 		starlight({
 			title: 'Concrnt Square',
@@ -38,7 +42,17 @@ export default defineConfig({
 				},
                 {
 					label: 'オペレーター向け',
-					autogenerate: { directory: 'operator' },
+                    items: [
+                        {
+                            label: "拡張機能の導入",
+                            autogenerate: { directory: 'operator/extensions' },
+                        },
+                        { slug: 'operator/robots' },
+                        {
+                            label: "v1からv2への移行",
+                            autogenerate: { directory: 'operator/migration' },
+                        },
+                    ]
 				},
                 {
 					label: 'リファレンス',
