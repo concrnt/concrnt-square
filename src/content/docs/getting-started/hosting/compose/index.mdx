@@ -129,6 +129,10 @@ docker compose run --rm concrnt2 conctl operation create-account
 v1のActivityPubブリッジ(ccworld-ap-bridge)から移行する場合は、新規にアカウントを作成せず[移行ガイドのActivityPubブリッジ移行手順](/operator/migration/compose/)を参照してください。フォロー関係や鍵を引き継げます。
 </Aside>
 
+`services.atproto`
+
+Bluesky(AT Protocol)と相互接続するatprotoブリッジです。`compose.yaml` には含まれていないため、サービスの追加・ブリッジ用設定ファイルの作成・鍵の生成を別途行います。手順は[Blueskyブリッジ(atproto)を導入する](/getting-started/hosting/atproto/)を参照してください。
+
 `services.mediaserver2`
 
 デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。有効化する場合は `etc/config/config.yaml` の `services:` にある `world.concrnt.mediaserver` の項目もコメントから外してください。

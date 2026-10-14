@@ -1,0 +1,308 @@
+---
+title: "Blueskyブリッジ(atproto)を導入する"
+description: Concrnt(v2)ドメインにatprotoブリッジを追加し、Bluesky(AT Protocol)と相互接続する
+sidebar:
+    order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+このページでは、構築済みのConcrnt(v2)ドメインに [atprotoブリッジ](https://github.com/concrnt/atproto) を追加し、Bluesky(AT Protocol)のネットワークと相互接続する方法を解説します。Docker ComposeとKubernetes(Helm)の両方の手順を掲載しています。
+
+<Aside>
+atprotoブリッジはActivityPubブリッジと同じ位置づけの「サービスモジュール」です。先に[Docker Compose](/getting-started/hosting/compose/)または[Kubernetes](/getting-started/hosting/kubernetes/)でドメインを起動し、トップページにCSIDが表示される状態にしてから進めてください。
+</Aside>
+
+## 仕組みと特徴
+
+- **Concrnt → Bluesky**: ブリッジが「読み取り専用のPDS」として振る舞い、ブリッジを有効化したアカウントごとにDID(`did:plc`)とatprotoリポジトリを管理します。Blueskyのrelay(`bsky.network`)がブリッジをクロールし、投稿がBluesky側に表示されます。
+- **Bluesky → Concrnt**: Jetstreamを購読し、フォロー中のBlueskyユーザーの投稿や、ブリッジ済みアカウント宛のリプライ・引用・いいね・フォローをConcrnt側へ取り込みます。
+- **専用ドメインは不要です。** PDSのserviceEndpointはConcrntドメインのFQDNそのものになり、`/xrpc/*` はConcrnt本体のゲートウェイが転送します。ワイルドカードDNS/TLSも必要ありません。
+- **ハンドルはユーザーが持ち込みます。** サーバー側でハンドルを発番せず、各ユーザーが自分で管理しているドメイン(例: `alice.example.com`)をBlueskyのハンドルとして登録します。ドメインの所有確認はユーザー自身がDNSのTXTレコード等で行います。
+
+<Aside type="caution">
+ブリッジのポート(既定 `8010`)は**絶対に直接公開しないでください**。管理APIはConcrntゲートウェイが付与する `cc-requester` ヘッダを信頼しているため、必ずゲートウェイ経由でアクセスさせる必要があります。
+</Aside>
+
+## 0. 前提条件
+
+- Concrnt本体がv1.10.23以降であること(ゲートウェイの `noAuth` サービスと `cc-requester` ヘッダの付け直しに対応した版)。このドキュメントの手順で構築した環境は満たしています。
+- ブリッジからインターネットへ外向きに接続できること(`plc.directory` / `bsky.network` / Jetstream / appviewへアクセスします)。
+- Postgres(本体と共有可)と、**本体と同一の**Redis。
+- 永続ボリューム(atprotoリポジトリ・画像blob・firehoseイベントログの保存先)。
+
+## 1. ブリッジ用サービスアカウントの作成
+
+ブリッジがConcrntに書き込むためのサービスアカウントを作成します。ActivityPubブリッジと同じ `conctl operation create-account` を使います。
+
+Docker Composeの場合(`v2/` ディレクトリで実行):
+
+```
+docker compose run --rm concrnt2 conctl operation create-account
+```
+
+Kubernetesの場合:
+
+```
+kubectl exec -n concrnt deploy/concrnt2 -- conctl operation create-account
+```
+
+出力される `ccid` と `privatekey` を控えてください。atprotoブリッジは秘密鍵からccidを導出しないため、**両方とも**設定に必要です。
+
+```
+domain:		 example.tld
+ccid:		 con1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+mnemonic:	 ...
+privatekey:	 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+publickey:	 ...
+```
+
+<Aside>
+ActivityPubブリッジも使っている場合でも、atprotoブリッジ用には別のサービスアカウントを作成してください。
+</Aside>
+
+## 2. ブリッジ固有の鍵を生成する
+
+atprotoブリッジにはサービスアカウントの秘密鍵のほかに、2つの鍵が必要です。どちらも32バイトのhex(64文字)で、`openssl` で生成できます。
+
+```
+openssl rand -hex 32   # masterRotationKey 用
+openssl rand -hex 32   # keyEncryptionKey 用
+```
+
+| **Key**             | **役割**                                                                 |
+|---------------------|--------------------------------------------------------------------------|
+| `masterRotationKey` | 全ブリッジアカウントのDID(`did:plc`)のrotation key(secp256k1秘密鍵)      |
+| `keyEncryptionKey`  | アカウント毎の署名鍵をDBに保存する際の暗号化キー(AES-GCM)                 |
+
+<Aside type="danger">
+`masterRotationKey` が漏洩すると、ブリッジが発行した**全アカウントのDIDを乗っ取る**ことができてしまいます。`keyEncryptionKey` を変更・紛失すると既存アカウントの署名鍵が復号できなくなります。どちらも秘密鍵と同じ扱いで厳重に管理し、永続ボリュームと一緒にバックアップしてください。
+</Aside>
+
+## 3-A. Docker Composeの場合
+
+### ブリッジの設定ファイルを作成
+
+`v2/etc/atproto/config.yaml` を新規に作成します。
+
+<Aside type="caution">
+`etc/config/` の中には置かないでください。`etc/config/` はConcrnt本体がディレクトリごと設定として読み込むため、本体の設定に混ざってしまいます。
+</Aside>
+
+```yaml
+server:
+  port: 8010
+
+# データベースはv2コア(concrnt2)と共有できます(テーブルは全て at_ プレフィックス)。
+# Redisは必ずv2コアと同じインスタンスを指定してください(投稿イベントを購読します)。
+database:
+  url: postgres://postgres:postgres@v2db:5432/concrnt
+redis:
+  url: redis://v2-redis:6379
+
+concrnt:
+  # 手順1で作成したサービスアカウント
+  ccid: con1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  privateKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  # コア(etc/config/config.yaml の concrnt.fqdn)と同じ値。スキームは付けない
+  domain: example.tld
+  # 300グラフェンを超える投稿をBluesky側に載せる際の元投稿リンク({uri}はcckv URIに置換)
+  postUrlTemplate: "https://world.concrnt.net/post?uri={uri}"
+
+atproto:
+  dataDir: /data
+  # 手順2で生成した鍵
+  masterRotationKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  keyEncryptionKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  # 以下は省略時の既定値です。通常は変更不要です。
+  # plcDirectory: https://plc.directory
+  # relays:
+  #   - https://bsky.network
+  # jetstream: jetstream2.us-east.bsky.network
+  # appview:
+  #   url: https://public.api.bsky.app
+  # firehoseRetentionHours: 72
+```
+
+### compose.yamlにサービスを追加
+
+`v2/compose.yaml` の `services:` に `atproto` サービスを追加します。relayへの通知やJetstream購読のために外向き通信が必要なので、`external` ネットワークにも参加させます。
+
+```yaml
+  atproto:
+    image: ghcr.io/concrnt/atproto:main
+    restart: always
+    depends_on:
+      v2db:
+        condition: service_healthy
+      v2-redis:
+        condition: service_healthy
+    expose:
+      - 8010
+    volumes:
+      - ./etc/atproto/config.yaml:/app/config.yaml:ro
+      - ./_composeData/atproto:/data
+    networks:
+      - external   # plc.directory / bsky.network / Jetstream への外向き通信に必要
+      - internal
+```
+
+### 本体のconfig.yamlにルーティングを追加
+
+`v2/etc/config/config.yaml` の `services:` に、ゲートウェイからブリッジへの転送設定を**2つ**追加します。管理API(`/atproto`・認証あり)と公開PDS面(`/xrpc`・認証なし)で `noAuth` が異なるため、同じ宛先を指す2つのエントリに分けます。
+
+```yaml
+services:
+  # ... 既存のエントリ ...
+  - name: world.concrnt.atproto
+    host: atproto
+    port: 8010
+    paths:
+      - /atproto
+    preservePath: true
+  - name: world.concrnt.atproto.pds
+    host: atproto
+    port: 8010
+    paths:
+      - /xrpc
+    preservePath: true
+    noAuth: true
+  - name: world.concrnt.web
+    host: world-app
+    port: 80
+    path: /
+    preservePath: true
+```
+
+### 起動
+
+```
+docker compose up -d
+docker compose restart concrnt2
+```
+
+本体は `config.yaml` を起動時にしか読まないため、ルーティングを反映するには `concrnt2` の再起動が必要です。`docker compose logs -f atproto` でエラーが出ていないことを確認してください。DBのマイグレーションは起動時に自動で実行されます。
+
+## 3-B. Kubernetes(Helm)の場合
+
+`concrnt2` チャート(0.2.13以降)には `atproto:` ブロックが用意されています。有効化すると、ブリッジのStatefulSet・PVC・Service・ConfigMapが作成され、本体の `services:` にも上記の2エントリが自動で登録されます。
+
+### Secretの作成
+
+本番環境では秘匿値をSecretに分離する `useSecret: true` を推奨します。`atproto-secret` という名前のSecretに、`secret.yaml` キーで秘匿値だけを部分YAMLとして書きます(ConfigMapの `config.yaml` の後に読まれ、深いマージで上書きされます)。
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: atproto-secret
+  namespace: concrnt
+stringData:
+  secret.yaml: |
+    concrnt:
+      privateKey: <手順1のサービスアカウントの秘密鍵>
+    atproto:
+      masterRotationKey: <手順2で生成した鍵>
+      keyEncryptionKey: <手順2で生成した鍵>
+```
+
+```
+kubectl apply -f atproto-secret.yaml
+```
+
+<Aside>
+`useSecret: true` のときはConfigMap側にこれら3つの値を出力しません。Secretに3つとも必ず含めてください(欠落すると起動時エラーになります)。
+</Aside>
+
+### values.yamlへの追記
+
+Step2で作成した `values.yaml` に以下を追記します。
+
+```yaml
+atproto:
+  enabled: true
+  useSecret: true
+  image: ghcr.io/concrnt/atproto:main
+  # 手順1で作成したサービスアカウントのccid(秘密鍵から導出されないため必須)
+  ccid: con1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  # atprotoリポジトリ / 画像blob / firehoseイベントログの永続ボリューム
+  storage: 4Gi
+  # 300グラフェン超過時にBluesky側へ載せる元投稿リンク
+  postUrlTemplate: "https://world.concrnt.net/post?uri={uri}"
+```
+
+DBとRedisは既定で本体と同じ `v2db` / `v2-redis` を指します。本体側のDB設定を変更している場合は `atproto.databaseUrl` / `atproto.redisUrl` も合わせてください。その他の項目はチャートの[values.yaml](https://github.com/concrnt/helmcharts/blob/main/charts/concrnt2/values.yaml)を参照してください。
+
+<Aside>
+`useSecret: false` にすると `atproto.privatekey` / `atproto.masterRotationKey` / `atproto.keyEncryptionKey` を `values.yaml` に直接書けますが、`values.yaml` をGit管理している場合は推奨しません。
+</Aside>
+
+### デプロイ
+
+```
+helm upgrade concrnt concrnt/concrnt2 -n concrnt -f values.yaml
+kubectl get pods -n concrnt
+```
+
+`atproto-0` Podが `Running` になり、`concrnt2` Podが新しい設定で再起動されていることを確認してください。`observability.createPodMonitors` を有効にしている場合は、ブリッジの `/metrics` を収集するPodMonitorも作成されます。
+
+## 4. 動作確認
+
+ブラウザまたは `curl` で、ゲートウェイ経由でブリッジに到達できることを確認します。
+
+```
+curl https://<fqdn>/xrpc/com.atproto.sync.listRepos
+```
+
+`{"repos":[]}` のようなJSONが返れば、公開PDS面の転送は正常です。
+
+次にfirehose(WebSocket)の疎通を確認します。ゲートウェイのリバースプロキシを経由してWebSocketが通る必要があり、relayはここに接続してきます。[websocat](https://github.com/vi/websocat) などのWebSocketクライアントで接続し、エラーなく待ち受け状態になることを確認してください。
+
+```
+websocat wss://<fqdn>/xrpc/com.atproto.sync.subscribeRepos
+```
+
+<Aside>
+Cloudflare Tunnelを使っている場合、WebSocketは既定で通ります。独自のリバースプロキシを前に置いている場合は、`/xrpc` 配下へのWebSocket(Upgrade)が通るように設定してください。
+</Aside>
+
+## 5. ユーザー側での有効化
+
+ブリッジが動作していれば、ドメイン内の各ユーザーはクライアントから自分でBluesky連携を有効化できます。ユーザーには以下のように案内してください。
+
+1. [concrnt.world](https://concrnt.world) の **設定 > 外部連携 > Bluesky設定** を開きます。
+2. ハンドルとして使う**自分が所有しているドメイン**(例: `alice.example.com`)を入力し、「セットアップ開始」を押します。この時点でDIDが発行されます。
+3. 画面に表示される内容に従い、ドメインの所有を証明します。方法はどちらか一方で構いません。
+   - **方法A**: DNSに `_atproto.<ハンドル>` のTXTレコードを追加し、値を `did=<発行されたDID>` にする(推奨)
+   - **方法B**: `https://<ハンドル>/.well-known/atproto-did` でDIDをプレーンテキストとして配信する
+4. レコードが反映されたら「確認する」を押します。成功するとアカウントがactiveになり、Bluesky側に表示されるようになります。
+5. 必要に応じて「転送元タイムライン」を設定します。未設定の場合はホームタイムラインへの投稿がBlueskyへ転送されます。
+
+<Aside>
+Bluesky側のユーザーをフォローすると、その投稿が自分のタイムラインに流れてきます。ブリッジ経由のリプライ・引用・いいね・フォローは通知欄に届きます。
+</Aside>
+
+## 運用上の注意
+
+- **鍵と永続ボリュームのバックアップ**: `masterRotationKey` / `keyEncryptionKey` と `dataDir`(Composeでは `_composeData/atproto`、Helmでは `atproto-data` PVC)はセットで保護してください。DBだけ残っていてもこれらを失うとBluesky側のアカウントを復旧できません。
+- **relayのアカウント数上限**: `bsky.network` にはホスト(ドメイン)毎に受け入れるアカウント数の上限があります。ブリッジ利用者が増えてきたら、Bluesky運営にtrusted domain枠の申請を相談してください。
+- **ドメイン内のデータ量**: ActivityPubブリッジと同様に、フォローしたBlueskyユーザーの投稿への参照がドメイン内に蓄積されます(本文はコピーせず、表示時にappviewから解決します)。
+- **イメージの更新**: `:main` タグを使っている場合、Kubernetesでは `imagePullPolicy` の既定(`IfNotPresent`)により再起動だけではイメージが更新されません。タグ付きリリースを利用するか、`Always` を設定してください。
+
+## トラブルシューティング
+
+### Bluesky側でハンドルが `handle.invalid` と表示される
+
+DNSの反映前に確認を通してしまった場合や、relayがアカウントの有効化イベントを取りこぼした場合に発生します。DNSレコードが正しく公開されていることを確認した上で、ユーザー自身が **設定 > 外部連携 > Bluesky設定** の「Blueskyに再送信」を押すと、アカウント情報を再送して再検証させることができます。プロフィールがBluesky側に反映されない場合も同じ操作で解消します。
+
+### 設定画面で「Blueskyブリッジとの通信に失敗しました」と表示される
+
+ゲートウェイからブリッジへの転送が設定されていないか、ブリッジが起動していません。
+
+- Composeの場合、`etc/config/config.yaml` の `services:` に `world.concrnt.atproto` と `world.concrnt.atproto.pds` の2エントリが入っていて、`concrnt2` を再起動しましたか？
+- `docker compose logs atproto` / `kubectl logs -n concrnt atproto-0` に設定エラーが出ていませんか？(`keyEncryptionKey must be 32 bytes of hex` 等)
+- `concrnt.ccid` と `concrnt.privateKey` は同じサービスアカウントの組み合わせになっていますか？
+
+### Bluesky側に投稿が全く出てこない
+
+relayがブリッジのfirehoseに接続できていない可能性があります。「4. 動作確認」の手順でWebSocketの疎通を確認してください。疎通に問題がない場合は、ユーザーに「Blueskyに再送信」を試してもらってください。
