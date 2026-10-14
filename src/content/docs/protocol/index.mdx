@@ -1,0 +1,30 @@
+---
+title: "プロトコル仕様(CIP)"
+description: Concrntのプロトコル仕様 CIP (Concrnt Improvement Proposals) の日本語訳
+sidebar:
+    order: 0
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Concrntのプロトコルは **CIP (Concrnt Improvement Proposals)** として番号付きの仕様書で定義されています。このセクションにはその日本語訳を掲載しています。
+
+- 原文(英語・規範): [concrnt/CIPs](https://github.com/concrnt/CIPs)
+- 日本語訳: [concrnt/CIPs-translated](https://github.com/concrnt/CIPs-translated)
+
+<Aside>
+各ページは `CIPs-translated` リポジトリから自動生成されています。誤訳や修正の提案は翻訳リポジトリへ、仕様そのものへの提案は原文リポジトリへお願いします。日本語訳と原文に食い違いがある場合は原文が優先されます。
+</Aside>
+
+## 読む順番
+
+CIP-0(Core)とCIP-1(Document)がすべての前提です。この2つを読んだあと、興味のある拡張へ進んでください。
+
+| 範囲 | CIP | 内容 |
+|---|---|---|
+| 基盤 | [CIP-0](./cip-0/) / [CIP-1](./cip-1/) | エンティティ識別子(CCID)・所属・CCURI / 署名付きJSONドキュメント |
+| サーバーAPI | [CIP-2](./cip-2/) 〜 [CIP-5](./cip-5/) | 認証・Commit・Delete・Query |
+| データモデル | [CIP-6](./cip-6/) 〜 [CIP-10](./cip-10/) | Reference・Distribution・Chunkline・Association・Ack |
+| 拡張 | [CIP-11](./cip-11/) 〜 [CIP-16](./cip-16/) | Realtime・Policy・Subkey・Batch・Abuse Report・Replication |
+
+仕様本文に含めるとノイズになる解説は[補足ノート](./notes/)にまとめられています。

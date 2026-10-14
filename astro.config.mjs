@@ -1,14 +1,22 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import cips from './scripts/cips.mjs';
 
 // https://astro.build/config
 export default defineConfig({
 	redirects: {
 		'/getting-started/hosting/atproto/': '/operator/extensions/atproto/',
 		'/getting-started/hosting/robots/': '/operator/robots/',
+		// コンセプト配下の仕組み解説はプロトコル仕様(CIP)へ統合
+		'/concept/architecture/': '/protocol/',
+		'/concept/identity/': '/protocol/cip-0/',
+		'/concept/repository/': '/protocol/cip-1/',
+		'/concept/objects/': '/protocol/cip-1/',
+		'/concept/policy/': '/protocol/cip-12/',
 	},
 	integrations: [
+		cips(),
 		starlight({
 			title: 'Concrnt Square',
 			social: {
@@ -18,6 +26,10 @@ export default defineConfig({
                 {
 					label: 'Concept',
 					autogenerate: { directory: 'concept' },
+				},
+                {
+					label: 'プロトコル',
+					autogenerate: { directory: 'protocol' },
 				},
                 {
 					label: 'Getting-Started',

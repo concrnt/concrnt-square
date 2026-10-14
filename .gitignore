@@ -19,3 +19,7 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# generated from cips/ (see scripts/cips.mjs)
+src/content/docs/protocol/cip-*.md
+src/content/docs/protocol/notes.md

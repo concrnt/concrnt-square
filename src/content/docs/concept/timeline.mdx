@@ -1,7 +1,7 @@
 ---
 title: "タイムライン"
 sidebar:
-    order: 7
+    order: 3
 ---
 
 timelineはmessageやassociationを時系列に並べたものです。concurrent.worldでは、ユーザータイムラインやコミュニティタイムラインがこれを用いて実装されています。
@@ -38,3 +38,4 @@ Concrntはタイムラインを10分間隔のチャンクに分割しており�
 
 Concrntはこのような仕組みにより、ローカルだけでなく複数のリモートを織り交ぜた、様々なタイムラインからなるタイムラインをユーザーに迅速に提供しています。
 
+このチャンク構造(Chunkline)の正確な仕様は[CIP-8: Chunkline](/protocol/cip-8/)、リアルタイム購読は[CIP-11: Realtime API](/protocol/cip-11/)で定義されています。
