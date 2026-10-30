@@ -19,36 +19,36 @@ export default defineConfig({
 		cips(),
 		starlight({
 			title: 'Concrnt Square',
-			social: {
-				github: 'https://github.com/concrnt',
-			},
+			social: [
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/concrnt' },
+			],
 			sidebar: [
                 {
 					label: 'Concept',
-					autogenerate: { directory: 'concept' },
+					items: [{ autogenerate: { directory: 'concept' } }],
 				},
                 {
 					label: 'プロトコル',
-					autogenerate: { directory: 'protocol' },
+					items: [{ autogenerate: { directory: 'protocol' } }],
 				},
                 {
 					label: 'Getting-Started',
                     items: [
                         {
                             label: "使ってみる",
-                            autogenerate: { directory: 'getting-started/world' },
+                            items: [{ autogenerate: { directory: 'getting-started/world' } }],
                         },
                         {
                             label: "アプリケーションを作る",
-                            autogenerate: { directory: 'getting-started/app-dev' },
+                            items: [{ autogenerate: { directory: 'getting-started/app-dev' } }],
                         },
                         {
                             label: "サーバーを建てる",
-                            autogenerate: { directory: 'getting-started/hosting' },
+                            items: [{ autogenerate: { directory: 'getting-started/hosting' } }],
                         },
                         {
                             label: "開発に参加する",
-                            autogenerate: { directory: 'getting-started/contribute' },
+                            items: [{ autogenerate: { directory: 'getting-started/contribute' } }],
                         },
                     ]
 				},
@@ -57,26 +57,26 @@ export default defineConfig({
                     items: [
                         {
                             label: "拡張機能の導入",
-                            autogenerate: { directory: 'operator/extensions' },
+                            items: [{ autogenerate: { directory: 'operator/extensions' } }],
                         },
                         { slug: 'operator/robots' },
                         {
                             label: "v1からv2への移行",
-                            autogenerate: { directory: 'operator/migration' },
+                            items: [{ autogenerate: { directory: 'operator/migration' } }],
                         },
                     ]
 				},
                 {
 					label: 'リファレンス',
-					autogenerate: { directory: 'reference' },
+					items: [{ autogenerate: { directory: 'reference' } }],
 				},
                 {
 					label: 'Archive',
-					autogenerate: { directory: 'archive' },
+					items: [{ autogenerate: { directory: 'archive' } }],
 				},
                 {
 					label: 'Misc',
-					autogenerate: { directory: 'misc' },
+					items: [{ autogenerate: { directory: 'misc' } }],
 				},
 			],
 		}),
