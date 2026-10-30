@@ -14,12 +14,9 @@ jobs:
         with:
           submodules: true
 
-      # pnpm 10+ は sharp@0.32 の install script を無視して astro build が
-      # "Could not find Sharp" で落ちるので 9 を使う
+      # バージョンは package.json の packageManager に従う(Cloudflare Pages と共通)
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
