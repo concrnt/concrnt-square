@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@astro-openapi/gui-swagger": "^0.0.5",
-    "@astrojs/starlight": "^0.42.9",
-    "astro": "^7.4.7",
+    "@astrojs/starlight": "^0.42.11",
+    "astro": "^7.4.11",
     "astro-embed": "^0.14.0",
     "sharp": "^0.35.5"
   }
