@@ -20,7 +20,7 @@ v2はConcrntのプロトコルとサーバー実装を大きく刷新したも�
 | | v1 | v2 |
 |---|---|---|
 | サーバー構成 | `ccgateway`(リバースプロキシ) + `ccapi`(バックエンド)の2プロセス | 単一の `concrnt` バイナリに統合(ゲートウェイを内包) |
-| Webクライアント | `web-dashboard`(`/web` で配信) | `concrnt-web` (world-app) (`/` で配信) |
+| Webクライアント | `web-dashboard`(`/web` で配信) | `world-app` (`/` で配信) |
 | PostgreSQL | 16 | 18 |
 | DBなどのサービス名 | `db` / `redis` / `memcached` | `v2db` / `v2-redis` / `v2-memcached` |
 | 設定キー | `concrnt.dimension` ほか | `concrnt.layer` ほか(`backends` / `integrations` / `meta` に再編) |
