@@ -21,7 +21,7 @@ Concrnt(v2)の本体は、SNSとして最低限必要な機能だけを持つ小
 |---|---|---|
 | ActivityPubブリッジ | Mastodon / Misskey などFediverseとの連合 | [ActivityPubブリッジを導入する](./activitypub/) |
 | Blueskyブリッジ(atproto) | Bluesky(AT Protocol)との相互接続 | [Blueskyブリッジ(atproto)を導入する](./atproto/) |
-| メディアサーバー(cc-media-server) | 画像などのメディアを自ドメインで管理する | Docker Composeの `services.mediaserver2` を参照 |
+| メディアサーバー(cc-media-server) | 画像などのメディアを自ドメインで管理する | [メディアサーバー](#メディアサーバー) |
 
 ## サービスモジュールの共通の仕組み
 
@@ -33,6 +33,27 @@ Concrnt(v2)の本体は、SNSとして最低限必要な機能だけを持つ小
 
 <Aside type="caution">
 本体は `config.yaml` を起動時にしか読みません。Docker Composeで `services:` を変更した場合は `docker compose restart concrnt2` で本体を再起動してください。Helmでは設定の変更に応じて自動で再起動されます。
+</Aside>
+
+## メディアサーバー
+
+Docker Composeでは `compose.yaml` の `services.mediaserver2` と `etc/config/config.yaml` の `world.concrnt.mediaserver` を、Helmでは `values.yaml` の `mediaserver.enabled` を有効化します。
+
+<Aside type="caution">
+クライアントはメディアサーバーから署名付きURLを受け取り、ブラウザからオブジェクトストレージへ直接 `PUT` でアップロードします。そのためバケットにCORSの設定が必要です(v1ではメディアサーバー経由でアップロードしていたため不要でした)。設定が無いと、メディア一覧にファイルは増えるもののストレージには何もアップロードされず、投稿もできません。
+
+Cloudflare R2の場合はバケットの Settings → CORS Policy に次のように設定します。`AllowedOrigins` は利用するクライアントのオリジンに絞っても構いません。
+
+```json
+[
+  {
+    "AllowedOrigins": ["*"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
 </Aside>
 
 ## v1からの移行

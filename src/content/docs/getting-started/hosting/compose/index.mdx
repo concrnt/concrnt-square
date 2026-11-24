@@ -127,6 +127,8 @@ Bluesky(AT Protocol)と相互接続するatprotoブリッジです。`compose.ya
 
 デフォルトで利用が可能な `concrnt.world` のメディアアップロード機能の代わりにConcrntサーバーでメディアを管理する `cc-media-server` を有効化します。有効化する場合は `etc/config/config.yaml` の `services:` にある `world.concrnt.mediaserver` の項目もコメントから外してください。
 
+バケットにはCORSの設定が必要です。[メディアサーバー](/operator/extensions/#メディアサーバー)を参照してください。
+
 `services.cc-search` && `services.meilisearch`
 
 コミュニティ内検索を有効にします。有効化する場合は `etc/config/config.yaml` の `services:` にある `net.concrnt.search` の項目もコメントから外してください。
